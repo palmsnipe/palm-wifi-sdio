@@ -1,0 +1,8 @@
+/dist/
+**/__pycache__/
+*.pdb
+*.prc
+*.zip
+*.sha256
+/src/uarm/test/wpa2_hardware/build/*
+!/src/uarm/test/wpa2_hardware/build/nonce_seed.h
