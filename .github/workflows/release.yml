@@ -71,7 +71,8 @@ jobs:
           asset="PalmOne-E2-WPA2-$RELEASE_VERSION.zip"
           make test preview patch-prc PREVIEW_ZIP="dist/$asset"
           cp build/E2WPA2Patcher.prc dist/
-          PALMONE_RELEASE_ZIP="dist/$asset" PALMONE_RELEASE_PATCHER=dist/E2WPA2Patcher.prc +            python3 -m unittest discover -s tests -v
+          export PALMONE_RELEASE_ZIP="dist/$asset" PALMONE_RELEASE_PATCHER=dist/E2WPA2Patcher.prc
+          python3 -m unittest discover -s tests -v
           (
             cd dist
             for artifact in "$asset" E2WPA2Patcher.prc; do
