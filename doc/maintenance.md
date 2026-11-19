@@ -7,6 +7,7 @@ Use this repository for driver, Wi-Fi Setup, and packaging changes. Build the re
 - [panel/](../panel) contains the 68K Wi-Fi Setup patch and the credential layout shared with the driver.
 - [wpa2/](../wpa2) contains the WPA2 handshake, key handling and CCMP code.
 - [app/](../app) builds the E2 WPA2 Test status app.
+- [installer/](../installer) builds the on-device installer and stock restore app.
 - [tools/](../tools) contains the stock resource patcher and release bundle builder.
 - [tests/test_release.py](../tests/test_release.py) checks how the release ZIP is assembled and applied.
 
@@ -43,6 +44,14 @@ python3 apply.py local/WiFi_Installer1.2.prc palm-wpa2-prcs
 The build directory is generated. Git ignores `local/`, and the release ZIP excludes it. Keep the installer and generated stock and patched PRCs local. The release ZIP contains the patcher, its payloads and their source, and the seed used for that build.
 
 The RSN source retains a few probe routines from the tested v0.7 build. The ARM linker discards them. Removing them from the source changed the compiler's output for the live AES key unwrap routine, so the layout change keeps that source intact to reproduce v0.7.
+
+## Build the single-PRC installer
+
+Run `make installer` to generate `build/E2WPA2Installer.prc` from the same five PRCs used for separate installation and rollback. The generated installer stays in the ignored build directory. The public patch kit includes the installer source, build script, and an installer base without embedded palmOne resources. Its `apply.py --single` option combines that base with resources extracted from the user's original installer.
+
+The on-device app stages incoming databases under private names. It keeps the previous copies through the soft reset because Palm OS can still have the old Wi-Fi panel cached. The next installer action cleans up a completed transaction or rolls back a pending one before applying another change.
+
+The [emulator results](palmone-e2-wpa2.md#single-prc-installer) cover install, reboot, WPA2 and DHCP, stock restore, and failure before activation. See the [release process](releasing.md) for building and publishing a candidate in GitHub Actions.
 
 ## Driver and protocol changes
 

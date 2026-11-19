@@ -1,0 +1,23 @@
+DATA "code" ID 1 "code0001.bin"
+
+FORM ID 1000 AT (0 0 160 160)
+BEGIN
+    TITLE "E2 WPA2 Installer"
+    LABEL "Eject the Wi-Fi card." ID 1001 AT (8 27)
+    LABEL "Turn off Bluetooth." ID 1002 AT (8 42)
+    LABEL "Exit Wi-Fi Setup first." ID 1003 AT (8 57)
+    BUTTON "Install WPA2" ID 1004 AT (8 83 70 16)
+    BUTTON "Restore Stock" ID 1005 AT (81 83 71 16)
+END
+
+ALERT ID 1010
+INFORMATION
+BEGIN
+    TITLE "E2 WPA2 Installer"
+    MESSAGE "^1"
+    BUTTONS "OK"
+END
+
+APPLICATIONICONNAME ID 1000 "E2 WPA2 Installer"
+VERSION ID 1000 "1.0"
+STRING ID 1000 "1.0"

@@ -1,0 +1,102 @@
+name: Palm Wi-Fi release
+run-name: WPA2 ${{ inputs.mode }} ${{ inputs.version || inputs.candidate_run }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: Check packaging, build a release candidate, or publish a tested candidate
+        type: choice
+        options: [check, candidate, publish]
+        default: check
+        required: true
+      version:
+        description: Version tag for a new candidate, such as v0.8
+        type: string
+      candidate_run:
+        description: Successful Actions run ID to publish
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    if: github.repository == 'palmsnipe/palm-wifi-sdio' && github.ref == 'refs/heads/main' && inputs.mode != 'publish'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Test packaging
+        run: |
+          bash -n tools/publish_candidate.sh
+          python3 -m unittest discover -s tests -v
+      - name: Check candidate version
+        if: inputs.mode == 'candidate'
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: '[[ "$RELEASE_VERSION" =~ ^v[0-9]+\.[0-9]+(\.[0-9]+)?$ ]]'
+
+  candidate:
+    if: inputs.mode == 'candidate'
+    needs: check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    container:
+      image: ghcr.io/palmsnipe/palm-toolchain-sdk@sha256:2c441bfa432785cf90e34fb5f4efe241c07a9e3666ee475119d856f96db3299f
+      credentials:
+        username: palmsnipe
+        password: ${{ secrets.PALM_TOOLCHAIN_REGISTRY_TOKEN }}
+    env:
+      PALM_TOOLCHAIN_ROOT: /opt/palm-toolchain
+      RELEASE_VERSION: ${{ inputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Build and audit the public patch kit
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          if git show-ref --verify --quiet "refs/tags/$RELEASE_VERSION"; then
+            echo "The version tag already exists" >&2
+            exit 1
+          fi
+          apt-get update
+          apt-get install -y --no-install-recommends python3
+          mkdir -p dist
+          asset="PalmOne-E2-WPA2-$RELEASE_VERSION.zip"
+          make test preview PREVIEW_ZIP="dist/$asset"
+          PALMONE_RELEASE_ZIP="dist/$asset" python3 -m unittest discover -s tests -v
+          (cd dist && sha256sum "$asset" > "$asset.sha256" && sha256sum -c "$asset.sha256")
+          printf '%s\n%s\n' "$GITHUB_SHA" "$RELEASE_VERSION" > dist/candidate.txt
+      - uses: actions/upload-artifact@v7
+        with:
+          name: palm-wifi-sdio-candidate-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            dist/PalmOne-E2-WPA2-${{ inputs.version }}.zip
+            dist/PalmOne-E2-WPA2-${{ inputs.version }}.zip.sha256
+            dist/candidate.txt
+          if-no-files-found: error
+
+  publish:
+    if: github.repository == 'palmsnipe/palm-wifi-sdio' && github.ref == 'refs/heads/main' && inputs.mode == 'publish'
+    concurrency:
+      group: palm-wifi-sdio-publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Publish the verified candidate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CANDIDATE_RUN: ${{ inputs.candidate_run }}
+        run: bash tools/publish_candidate.sh "$CANDIDATE_RUN"

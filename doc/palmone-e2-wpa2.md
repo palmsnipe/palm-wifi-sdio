@@ -1,10 +1,33 @@
-# palmOne SDIO WPA2 v0.7 for the Tungsten E2
+# palmOne SDIO WPA2 for the Tungsten E2
 
 Version 0.7 adds WPA2-Personal to the Tungsten E2 with the palmOne SDIO card with NIC ID `801D`, primary firmware `1.1.2`, and station firmware `1.8.0`. It uses the selected network's SSID and takes the BSSID and channel from the Prism scan. Use a broadcast 2.4 GHz WPA2-Personal network with CCMP and 802.11b rates enabled. The AP should allow stations to join without protected management frames.
 
 The stock scan reports whether a network is protected. It does not include the RSN information needed to distinguish WPA2 from other protected modes. The Setup panel asks which security path to use. The driver verifies WPA2-Personal and CCMP during the handshake. [Prism scan result layout](https://raw.githubusercontent.com/torvalds/linux/v5.15/drivers/net/wireless/intersil/hostap/hostap_wlan.h)
 
-## Generate the PRCs
+## Install from a single PRC
+
+The installer requires the original palmOne v1.2 Wi-Fi software to be installed on the Tungsten E2. It replaces the two Wi-Fi databases and adds the **E2 WPA2 Test** status app.
+
+In a release kit with single-PRC support, run this command using Python 3 and the original installer. The v0.7 kit uses the individual PRCs described below.
+
+```sh
+python3 apply.py --single /path/to/WiFi_Installer1.2.prc palm-wpa2-prcs
+```
+
+This writes `palm-wpa2-prcs/E2WPA2Installer.prc`. If you are working from source, `make installer` writes the same file under `build/`. [Build guide](maintenance.md)
+
+```sh
+make installer
+```
+
+1. Back up the E2. Exit Wi-Fi Setup, turn off Bluetooth, eject the Wi-Fi card, and soft-reset.
+2. Transfer only `E2WPA2Installer.prc` to internal memory. Open **E2 WPA2 Installer** and tap **Install WPA2**.
+3. After the installer reports success, leave the card out. Power off for five seconds, turn the E2 back on, then soft-reset.
+4. Insert the card and continue with [Connect over WPA2](#connect-over-wpa2).
+
+To return to the original version, repeat the first step, open **E2 WPA2 Installer**, and tap **Restore Stock**. Follow the same power and soft-reset sequence before reinserting the card. The installer leaves the separate status app installed. Keep the generated installer private because it embeds resources from your local palmOne software.
+
+## Generate the individual PRCs
 
 Obtain the original `WiFi_Installer1.2.prc` and unpack this ZIP. From the extracted folder, run the command below with Python 3. The output folder must be new. The patcher verifies the installer and its driver and panel resources before writing the installation and rollback PRCs. [Original on-device installer](https://palmdb.net/app/palmone-wifi-card-driver)
 
@@ -12,12 +35,15 @@ Obtain the original `WiFi_Installer1.2.prc` and unpack this ZIP. From the extrac
 python3 apply.py /path/to/WiFi_Installer1.2.prc palm-wpa2-prcs
 ```
 
-## Install and connect
+## Install the individual PRCs
 
 1. Exit Wi-Fi Setup, turn off Bluetooth, and eject the card. Soft-reset. Install `E2WPA2Test.prc`, `SP3WLAN-E2-WPA2-Preview.prc`, and `WiFiPanel-E2-WPA2-Preview.prc` into internal memory.
 2. Turn the E2 off for five seconds, turn it on, and soft-reset with the card still ejected.
-3. Insert the card, open **Wi-Fi Setup**, and select the network. At **Wi-Fi Security**, choose **WPA2** and enter its passphrase. When upgrading from v0.6, selecting WPA2 for the v0.6 test network can import its saved key. Choose **Stock Wi-Fi** for the original security flow when prompted for a different protected network.
-4. After Setup, open **E2 WPA2 Test**. Expect **Stage 22 / Detail 0000**. Check the BSSID, channel, and **Entered key saved** or **Used saved key**. If Setup leaves Wi-Fi off, set it to **On** in **Preferences → Wi-Fi** before resetting.
+
+## Connect over WPA2
+
+1. Insert the card, open **Wi-Fi Setup**, and select the network. At **Wi-Fi Security**, choose **WPA2** and enter its passphrase. When upgrading from v0.6, selecting WPA2 for the v0.6 test network can import its saved key. Choose **Stock Wi-Fi** for the original security flow when prompted for a different protected network.
+2. After Setup, open **E2 WPA2 Test**. Expect **Stage 22 / Detail 0000**. Check the BSSID, channel, and **Entered key saved** or **Used saved key**. If Setup leaves Wi-Fi off, set it to **On** in **Preferences → Wi-Fi** before resetting.
 
 The driver chooses the strongest protected infrastructure BSSID it sees for the selected SSID. With an empty scan cache after reboot it uses the last successful BSSID and channel. Rescan through **Wi-Fi Setup** if the AP moved or changed channel.
 
@@ -39,6 +65,12 @@ On a physical Tungsten E2, the driver obtained a DHCP lease from a 2.4 GHz WPA2-
 The emulated E2 completed WPA2, DHCP and encrypted ping using the Pi profile on channel 6 and a different SSID and BSSID on channel 11. The channel 11 fixture advertised optional protected management frames. The channel 11 profile also reconnected with its saved key after a soft reset. Forget returned to an empty passphrase field, and the prompt returned again after the power cycle and soft reset. The Pi fixture completed two group key rotations and authenticated new-key broadcast ARP and protected ping after each rotation. With the preview installed, the stock open-network setup completed on a separate fixture. The generated stock rollback PRCs restored the same open-network setup.
 
 The extracted archive generated five PRCs from the original installer and rejected a mismatched input without creating an output folder. Rebuilding from the archive reproduced the same PRC resource contents.
+
+### Single-PRC installer
+
+On an emulated Tungsten E2 with stock v1.2 Wi-Fi installed, the installer refused to modify Wi-Fi while the card was inserted. After ejecting it, **Install WPA2** installed both patches and the status app. The three databases survived a power cycle and soft reset, and their exported resources matched the individual PRCs. The Palm authenticated to simulated APs on channels 6 and 11 and exchanged protected DHCP traffic. **E2 WPA2 Test** showed **WPA2 link active**, **Stage 22 / Detail 0000**.
+
+**Restore Stock** reinstated the original driver and panel resources, which survived another reset. A deliberately incomplete payload left the original databases intact. The single-PRC flow still needs verification on a physical E2.
 
 ## Performance
 

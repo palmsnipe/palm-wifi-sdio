@@ -19,7 +19,7 @@ BEARSSL_MODULES := hash/sha1 codec/dec32be codec/enc32be codec/dec32le codec/enc
 SHIM_SOURCES := driver/hardware.c driver/link_entry.S wpa2/rsn_supplicant.c wpa2/ccmp_station.c wpa2/arm_memory.c \
 	$(addprefix $(BEARSSL_SRC)/src/,$(addsuffix .c,$(BEARSSL_MODULES)))
 
-.PHONY: all package preview test clean
+.PHONY: all package installer preview test clean
 all: build/E2WPA2Test.prc build/hardware.bin build/setup.bin
 
 build:
@@ -31,13 +31,22 @@ build/main.o: app/main.c driver/hardware.h Makefile | build
 build/startup.o: app/startup.c Makefile | build
 	$(M68K) $(M68K_FLAGS) -c $< -o $@
 
-build/code0001.elf: build/main.o build/startup.o app/linker.lkr
-	$(M68K) $(M68K_LINK) -o $@.stage1 $(filter %.o,$^)
-	node $(TOOLCHAIN)/tools/generate-m68k-relocs.mjs $@.stage1 build/relocs.s $(PREFIX)/bin/m68k-none-elf-readelf
-	$(M68K) $(M68K_ABI) -c build/relocs.s -o build/relocs.o
-	$(M68K) $(M68K_LINK) -o $@ $(filter %.o,$^) build/relocs.o
+build/install:
+	mkdir -p $@
 
-build/code0001.bin: build/code0001.elf
+build/install/main.o: installer/main.c Makefile | build/install
+	$(M68K) $(M68K_FLAGS) -isystem$(SDK)/Extensions/ExpansionMgr -c $< -o $@
+
+build/code0001.elf: build/main.o
+build/install/code0001.elf: build/install/main.o
+
+build/code0001.elf build/install/code0001.elf: build/startup.o app/linker.lkr
+	$(M68K) $(M68K_LINK) -o $@.stage1 $(filter %.o,$^)
+	node $(TOOLCHAIN)/tools/generate-m68k-relocs.mjs $@.stage1 $(@D)/relocs.s $(PREFIX)/bin/m68k-none-elf-readelf
+	$(M68K) $(M68K_ABI) -c $(@D)/relocs.s -o $(@D)/relocs.o
+	$(M68K) $(M68K_LINK) -o $@ $(filter %.o,$^) $(@D)/relocs.o
+
+build/code0001.bin build/install/code0001.bin: %.bin: %.elf
 	$(PREFIX)/bin/m68k-none-elf-objcopy -O binary -j .vec -j .text $< $@
 
 build/E2WPA2Test.ro: app/app.rcp build/code0001.bin
@@ -45,6 +54,12 @@ build/E2WPA2Test.ro: app/app.rcp build/code0001.bin
 
 build/E2WPA2Test.prc: build/E2WPA2Test.ro
 	$(PREFIX)/bin/build-prc --no-check -o $@ -n 'E2 WPA2 Test' -c E2WT -t appl $<
+
+build/install/base.ro: installer/app.rcp build/install/code0001.bin
+	cd build/install && $(PREFIX)/bin/pilrc -ro -o base.ro -name 'E2 WPA2 Installer' -creator E2WI -type appl ../../installer/app.rcp
+
+build/install/base.prc: build/install/base.ro
+	$(PREFIX)/bin/build-prc --no-check -o $@ -n 'E2 WPA2 Installer' -c E2WI -t appl $<
 
 build/nonce_seed.h: | build
 	python3 tools/patch_installer.py seed $@
@@ -69,12 +84,17 @@ package: all
 	@test -f "$(INSTALLER)" || (echo "Place WiFi_Installer1.2.prc in local/ or set INSTALLER to its path" >&2; exit 1)
 	python3 tools/patch_installer.py package "$(INSTALLER)" build/hardware.bin build/setup.bin build
 
+installer: package build/install/base.prc
+	python3 tools/build_single_prc.py build/install/base.prc build build/E2WPA2Installer.prc
+	node $(TOOLCHAIN)/tools/validate-prc.mjs build/E2WPA2Installer.prc 'E2 WPA2 Installer' appl E2WI
+
 PREVIEW_ZIP ?= build/PalmOne-E2-WPA2-Preview.zip
-preview: all
+preview: all build/install/base.prc
 	python3 tools/release_bundle.py "$(PREVIEW_ZIP)" "$(BEARSSL_SRC)"
 
-test: all
+test: all build/install/base.prc
 	node $(TOOLCHAIN)/tools/validate-prc.mjs build/E2WPA2Test.prc 'E2 WPA2 Test' appl E2WT
+	node $(TOOLCHAIN)/tools/validate-prc.mjs build/install/base.prc 'E2 WPA2 Installer' appl E2WI
 
 clean:
 	rm -rf build

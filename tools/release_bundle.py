@@ -9,9 +9,10 @@ SOURCES = {
     "driver": ("hardware.c", "hardware.h", "link_entry.S", "profile.h", "stock.ld"),
     "panel": ("credential.h", "setup.c", "setup.ld", "setup_entry.S"),
     "app": ("STARTER-LICENSE", "app.rcp", "linker.lkr", "main.c", "startup.c"),
+    "installer": ("app.rcp", "main.c"),
     "wpa2": ("arm_memory.c", "ccmp_station.c", "ccmp_station.h", "palmone_ccmp_wire.h",
              "palmone_rsn_wire.h", "probe_result.h", "rsn_supplicant.c", "rsn_supplicant.h", "string.h"),
-    "tools": ("patch_installer.py", "release_bundle.py"),
+    "tools": ("build_single_prc.py", "patch_installer.py", "release_bundle.py"),
 }
 
 
@@ -30,8 +31,11 @@ def main():
         "apply.py": repo / "apply.py",
         "doc/palmone-e2-wpa2.md": guide,
         "doc/maintenance.md": repo / "doc/maintenance.md",
+        "doc/release-notes.md": repo / "doc/release-notes.md",
+        "doc/releasing.md": repo / "doc/releasing.md",
         "tests/test_release.py": repo / "tests/test_release.py",
         "build/nonce_seed.h": build / "nonce_seed.h",
+        "payload/E2WPA2InstallerBase.prc": build / "install/base.prc",
     }
     for folder, names in SOURCES.items():
         for name in names:
