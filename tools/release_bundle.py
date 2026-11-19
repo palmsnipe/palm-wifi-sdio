@@ -6,14 +6,12 @@ from pathlib import Path
 import zipfile
 
 SOURCES = {
-    "test/wpa2_hardware": ("Makefile", "apply.py", "release_bundle.py", "hardware.c", "hardware.h",
-                           "profile.h", "link_entry.S", "main.c", "app.rcp", "package.py"),
-    "test/wpa2_stock": ("stock.ld", "setup.c", "credential.h", "setup_entry.S", "setup.ld", "patch_driver.py"),
-    "test/wpa2_probe": ("rsn_supplicant.c", "rsn_supplicant.h", "ccmp_station.c", "ccmp_station.h",
-                         "arm_memory.c", "startup.c", "linker.lkr", "probe_result.h", "string.h",
-                         "STARTER-LICENSE"),
-    "test/prism_card_info": ("package.py",),
-    "uarm": ("palmone_rsn_wire.h", "palmone_ccmp_wire.h"),
+    "driver": ("hardware.c", "hardware.h", "link_entry.S", "profile.h", "stock.ld"),
+    "panel": ("credential.h", "setup.c", "setup.ld", "setup_entry.S"),
+    "app": ("STARTER-LICENSE", "app.rcp", "linker.lkr", "main.c", "startup.c"),
+    "wpa2": ("arm_memory.c", "ccmp_station.c", "ccmp_station.h", "palmone_ccmp_wire.h",
+             "palmone_rsn_wire.h", "probe_result.h", "rsn_supplicant.c", "rsn_supplicant.h", "string.h"),
+    "tools": ("patch_installer.py", "release_bundle.py"),
 }
 
 
@@ -22,20 +20,22 @@ def main():
     parser.add_argument("output", type=Path)
     parser.add_argument("bearssl_dir", type=Path)
     args = parser.parse_args()
-    hardware = Path(__file__).resolve().parent
-    repo = hardware.parents[3]
+    repo = Path(__file__).resolve().parents[1]
     guide = repo / "doc/palmone-e2-wpa2.md"
-    build = hardware / "build"
+    build = repo / "build"
     files = {
         "README.md": guide,
         "LICENSE": repo / "LICENSE",
-        "apply.py": hardware / "apply.py",
+        "Makefile": repo / "Makefile",
+        "apply.py": repo / "apply.py",
         "doc/palmone-e2-wpa2.md": guide,
-        "src/uarm/test/wpa2_hardware/build/nonce_seed.h": build / "nonce_seed.h",
+        "doc/maintenance.md": repo / "doc/maintenance.md",
+        "tests/test_release.py": repo / "tests/test_release.py",
+        "build/nonce_seed.h": build / "nonce_seed.h",
     }
     for folder, names in SOURCES.items():
         for name in names:
-            relative = f"src/uarm/{folder}/{name}"
+            relative = f"{folder}/{name}"
             files[relative] = repo / relative
     for name in ("E2WPA2Test.prc", "hardware.bin", "setup.bin"):
         files[f"payload/{name}"] = build / name

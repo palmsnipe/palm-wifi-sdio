@@ -1,14 +1,11 @@
 #include <PalmOS.h>
 
-#ifdef WPA2_CLEAR_WEP_PROFILE
-#include "../wpa2_hardware/profile.h"
-#endif
+#include "../driver/profile.h"
 #include "credential.h"
 
 enum { PassphraseForm = 6500, PassphraseLabel, PassphraseField, PassphraseConnect, PassphraseCancel };
 enum { SavedKeyForm = 6510, SavedKeyLabel, SavedKeyConnect, SavedKeyChange, SavedKeyCancel, SavedKeyForget };
 
-#ifdef WPA2_CLEAR_WEP_PROFILE
 static Boolean readProfile(const Char *ssid, Wpa2Profile *profile) {
     UInt16 size = sizeof(*profile);
     return PrefGetAppPreferences(WPA2_FEATURE_CREATOR, wpa2ProfileId(ssid), profile, &size, true) ==
@@ -61,45 +58,22 @@ static Int16 chooseSecurity(void) {
     FrmDeleteForm(form);
     return choice == SecurityWpa2 ? 1 : choice == SecurityStock ? 0 : -1;
 }
-#else
-static Boolean hasSavedKey(void) {
-    Wpa2SavedCredential stored;
-    UInt16 size = sizeof(stored);
-    const Int16 version = PrefGetAppPreferences(WPA2_FEATURE_CREATOR, Wpa2SavedPreference,
-                                                &stored, &size, true);
-    const Boolean found = version == Wpa2SavedVersion && size == sizeof(stored) &&
-                          !MemCmp(stored.ssid, WPA2_LAB_SSID, sizeof(stored.ssid));
-    MemSet(&stored, sizeof(stored), 0);
-    return found;
-}
-#endif
 
 static void clearSessionKey(const Char *ssid) {
     UInt32 value;
     if (FtrGet(WPA2_FEATURE_CREATOR, Wpa2CredentialFeature, &value) || !value) return;
     Wpa2Credential *const credential = (Wpa2Credential *)value;
-#ifdef WPA2_CLEAR_WEP_PROFILE
     if (StrCompare(credential->ssid, ssid)) return;
-#else
-    (void)ssid;
-#endif
     MemSet(credential, sizeof(*credential), 0);
 }
 
 static Boolean forgetSavedKey(const Char *ssid) {
     clearSessionKey(ssid);
-#ifdef WPA2_CLEAR_WEP_PROFILE
     Wpa2Profile profile;
     if (!readProfile(ssid, &profile)) return false;
     profile.hasKey = 0;
     MemSet(profile.pmk, sizeof(profile.pmk), 0);
     return writeProfile(&profile);
-#else
-    PrefSetAppPreferences(WPA2_FEATURE_CREATOR, Wpa2SavedPreference, Wpa2SavedVersion, NULL, 0, true);
-    UInt16 size = 0;
-    return PrefGetAppPreferences(WPA2_FEATURE_CREATOR, Wpa2SavedPreference,
-                                 NULL, &size, true) == noPreferenceFound;
-#endif
 }
 
 static UInt16 chooseSavedKey(const Char *ssid) {
@@ -146,11 +120,7 @@ static Boolean storePassphrase(const Char *ssid, const Char *text, UInt16 length
 
     MemSet(credential, sizeof(*credential), 0);
     MemMove(credential->bytes, text, length);
-#ifdef WPA2_CLEAR_WEP_PROFILE
     StrCopy(credential->ssid, ssid);
-#else
-    (void)ssid;
-#endif
     credential->length = length;
     credential->kind = Wpa2Passphrase;
     return true;
@@ -208,7 +178,6 @@ static Int16 selectCredential(const Char *ssid, Boolean saved) {
 // A negative return keeps Setup on the network list. Other results follow the stock path.
 Int16 wifiPassphrasePrompt(UInt8 *network) {
     const Char *const ssid = (const Char *)network + 11;
-#ifdef WPA2_CLEAR_WEP_PROFILE
     UInt16 ssidLength = 0;
     while (ssidLength < Wpa2SsidSize && ssid[ssidLength]) ++ssidLength;
     if (!ssidLength || ssidLength == Wpa2SsidSize) return 0;
@@ -233,8 +202,4 @@ Int16 wifiPassphrasePrompt(UInt8 *network) {
         network[44] = 0;
     }
     return result;
-#else
-    if (StrCompare(ssid, WPA2_LAB_SSID)) return 0;
-    return selectCredential(ssid, hasSavedKey());
-#endif
 }

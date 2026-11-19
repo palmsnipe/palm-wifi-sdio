@@ -7,19 +7,9 @@
 enum {
     CcmpMacSize = 24, CcmpHeaderSize = 8, CcmpTagSize = 8, CcmpKeySize = 16,
     CcmpNonceSize = 13, CcmpAadSize = 22, CcmpOverhead = CcmpHeaderSize + CcmpTagSize,
-    CcmpPairwiseId = 0, CcmpGroupId = 1, CcmpNextGroupId = 2, CcmpFromDs = 0x4208, CcmpToDs = 0x4108,
-    CcmpTestSnapSize = 8, CcmpTestMaxPlaintext = 160,
+    CcmpPairwiseId = 0, CcmpGroupId = 1, CcmpFromDs = 0x4208, CcmpToDs = 0x4108,
 };
 #define CCMP_MAX_PN UINT64_C(0xffffffffffff)
-
-enum CcmpLabResult {
-    CcmpLabNone, CcmpLabAccepted, CcmpLabReplay, CcmpLabBadTag, CcmpLabInvalid, CcmpLabClosed,
-};
-enum CcmpLabRequest {
-    CcmpEchoRequest = 1, CcmpEchoReply, CcmpGroupRequest, CcmpGroupReply, CcmpRekeyRequest,
-};
-
-static const uint8_t ccmpTestSnap[CcmpTestSnapSize] = {0xaa, 0xaa, 3, 0, 0, 0, 0x88, 0xb5};
 
 static inline uint64_t ccmpReadRsc(const uint8_t* bytes) {
     uint64_t pn = 0;

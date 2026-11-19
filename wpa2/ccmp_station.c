@@ -69,16 +69,16 @@ bool ccmpSeal(StationCcmpKey *key, const uint8_t *mac, uint8_t *payload, unsigne
     return ccmCrypt(key, mac, pn, payload + CcmpHeaderSize, plaintextSize, true);
 }
 
-enum CcmpLabResult ccmpOpen(StationCcmpKey *key, const uint8_t *mac, uint8_t *payload, unsigned size) {
-    if (!key->installed || size <= CcmpOverhead || !ccmpValidHeader(payload)) return CcmpLabInvalid;
+enum CcmpOpenResult ccmpOpen(StationCcmpKey *key, const uint8_t *mac, uint8_t *payload, unsigned size) {
+    if (!key->installed || size <= CcmpOverhead || !ccmpValidHeader(payload)) return CcmpInvalid;
     const uint64_t pn = ccmpReadPn(payload);
-    if (pn <= key->rxPn) return CcmpLabReplay;
+    if (pn <= key->rxPn) return CcmpReplay;
     const unsigned length = size - CcmpOverhead;
     if (!ccmCrypt(key, mac, pn, payload + CcmpHeaderSize, length, false)) {
         // BearSSL decrypts in place before checking the tag. Discard this plaintext.
         memset(payload + CcmpHeaderSize, 0, length);
-        return CcmpLabBadTag;
+        return CcmpBadTag;
     }
     key->rxPn = pn;
-    return CcmpLabAccepted;
+    return CcmpAccepted;
 }

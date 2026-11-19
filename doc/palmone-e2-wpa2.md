@@ -48,11 +48,8 @@ The transmit path reads the stock frame from the Prism TX buffer, applies softwa
 
 ## Build
 
-The archive includes the payloads' source, BearSSL source and notices, and the patching tools. To rebuild, use the compatible Palm OS toolchain and the included BearSSL tree.
+The archive includes the payloads' source, BearSSL source and notices, and the patching tools. To rebuild from the current source checkout or a bundle with a top-level Makefile, use the compatible Palm OS toolchain and the included BearSSL tree. For the original v0.7 archive, follow the build instructions included in that archive.
 
 ```sh
-make -C src/uarm/test/wpa2_hardware test preview \
-  PALM_TOOLCHAIN_ROOT=/path/to/palm-toolchain \
-  BEARSSL_SRC=/absolute/path/to/bearssl-0.6 \
-  PREVIEW_ZIP=build/PalmOne-E2-WPA2-v0.7.zip
+make test preview PALM_TOOLCHAIN_ROOT=/path/to/palm-toolchain
 ```

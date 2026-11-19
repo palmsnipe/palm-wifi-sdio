@@ -3,7 +3,7 @@
 #include "ccmp_station.h"
 #include "hardware.h"
 #include "profile.h"
-#include "../wpa2_stock/credential.h"
+#include "../panel/credential.h"
 #include "nonce_seed.h"
 #include "rsn_supplicant.h"
 
@@ -675,7 +675,7 @@ int linkReadHeader(void *driver, unsigned fid, unsigned offset, uint8_t *header,
     const unsigned keyId = ccmpReadKeyId(storage->rx);
     if ((group ? !keyId : keyId != CcmpPairwiseId) ||
         ccmpOpen(group ? &storage->groups[keyId] : &storage->pairwise,
-                 mac, storage->rx, size) != CcmpLabAccepted)
+                 mac, storage->rx, size) != CcmpAccepted)
         return -1;
     uint8_t *const plain = storage->rx + CcmpHeaderSize;
     if (memcmp(plain, rsnSnap, 6)) return -1;

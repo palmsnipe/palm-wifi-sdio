@@ -16,12 +16,17 @@ def main():
     args = parser.parse_args()
     base = Path(__file__).resolve().parent
     payload = base / "payload"
-    packager = base / "src/uarm/test/wpa2_hardware/package.py"
+    if not payload.exists():
+        payload = base / "build"
+    packager = base / "tools/patch_installer.py"
     output = args.output_dir.resolve()
     if output.exists():
         parser.error("choose a new output directory")
     if not output.parent.is_dir():
         parser.error("the parent of the output directory must already exist")
+    if any(not (payload / name).is_file() for name in ("hardware.bin", "setup.bin", "E2WPA2Test.prc")):
+        parser.error("patch payload is missing. Extract the release ZIP or build the driver with "
+                     "make from the repository root")
 
     try:
         with tempfile.TemporaryDirectory(dir=output.parent) as temporary:
