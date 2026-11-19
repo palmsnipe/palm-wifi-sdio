@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Verify the built ARM shim against AESCCM and count CCMP instructions."""
+"""Verify the ARM shim and count instructions for CCMP and passphrase derivation."""
 
 import argparse
 import subprocess
+from hashlib import pbkdf2_hmac
 from pathlib import Path
 
 from cryptography.hazmat.primitives.ciphers.aead import AESCCM
@@ -36,15 +37,19 @@ class Shim:
     def count_instruction(self, machine, address, size, data):
         self.instructions += 1
 
-    def call(self, name, *args):
+    def call(self, name, *args, stack_word=None, timeout=5_000_000):
         machine = self.machine
         for register, value in zip((regs.UC_ARM_REG_R0, regs.UC_ARM_REG_R1,
                                     regs.UC_ARM_REG_R2, regs.UC_ARM_REG_R3), args):
             machine.reg_write(register, value)
-        machine.reg_write(regs.UC_ARM_REG_SP, STACK + 0x10000)
+        sp = STACK + 0x10000
+        if stack_word is not None:
+            sp -= 8
+            machine.mem_write(sp, stack_word.to_bytes(4, "little"))
+        machine.reg_write(regs.UC_ARM_REG_SP, sp)
         machine.reg_write(regs.UC_ARM_REG_LR, STOP | 1)
         self.instructions = 0
-        machine.emu_start(CODE + self.symbols[name] - self.origin, STOP, timeout=5_000_000)
+        machine.emu_start(CODE + self.symbols[name] - self.origin, STOP, timeout=timeout)
         if machine.reg_read(regs.UC_ARM_REG_PC) != STOP:
             raise RuntimeError(f"{name} did not return")
         return machine.reg_read(regs.UC_ARM_REG_R0), self.instructions
@@ -109,14 +114,27 @@ def exercise(shim):
     return install, rows
 
 
+def derive_pmk(shim):
+    secret, ssid = b"password", b"IEEE"
+    shim.machine.mem_write(MATERIAL, secret)
+    shim.machine.mem_write(MAC, ssid)
+    _, instructions = shim.call("rsnDerivePmk", MATERIAL, len(secret), MAC, len(ssid),
+                                stack_word=PAYLOAD, timeout=90_000_000)
+    assert shim.machine.mem_read(PAYLOAD, 32) == pbkdf2_hmac("sha1", secret, ssid, 4096, 32)
+    return instructions
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("baseline", type=Path, help="baseline hardware.elf, adjacent to hardware.bin")
     parser.add_argument("candidate", type=Path, help="candidate hardware.elf, adjacent to hardware.bin")
     parser.add_argument("--readelf", default="arm-none-eabi-readelf")
+    parser.add_argument("--pmk", action="store_true", help="also verify and measure WPA2 PBKDF2")
     args = parser.parse_args()
-    base_install, baseline = exercise(Shim(args.baseline, args.readelf))
-    new_install, candidate = exercise(Shim(args.candidate, args.readelf))
+    old_shim = Shim(args.baseline, args.readelf)
+    new_shim = Shim(args.candidate, args.readelf)
+    base_install, baseline = exercise(old_shim)
+    new_install, candidate = exercise(new_shim)
     print("PXA270 passed AESCCM, alignment, replay, rekey and teardown checks")
     print(f"Key install instructions {base_install:,} -> {new_install:,}")
     print("Bytes           Seal instructions           Open instructions")
@@ -124,6 +142,8 @@ def main():
         b_seal, b_open = baseline[(size, 0)]
         c_seal, c_open = candidate[(size, 0)]
         print(f"{size:5}   {b_seal:9,} -> {c_seal:9,}     {b_open:9,} -> {c_open:9,}")
+    if args.pmk:
+        print(f"PBKDF2 instructions {derive_pmk(old_shim):,} -> {derive_pmk(new_shim):,}")
 
 
 if __name__ == "__main__":

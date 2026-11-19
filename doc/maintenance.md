@@ -82,6 +82,8 @@ python3 tools/benchmark_ccmp.py build/baseline-v0.8/build/hardware.elf build/har
 
 The tool loads each actual driver payload at a different address from its link address. It checks AES-CCM against an independent implementation before reporting the instruction counts. Use packet timings and throughput from a physical run to measure the effect of caches, radio and SDIO transfers.
 
+Add `--pmk` to include one complete WPA2 passphrase derivation. The benchmark verifies the derived key against PBKDF2-HMAC-SHA1 from Python's standard library. Use `74970c6` as the baseline for the passphrase follow-up.
+
 ### Physical A/B test
 
 Connect the E2 with v0.8 and note its IP address. Set `E2_IP` to that address and run both pings on a Linux host attached to the same AP.

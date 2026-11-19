@@ -45,8 +45,14 @@ static inline void ccmpMakeAadNonce(const uint8_t* mac, uint64_t pn, uint8_t* aa
     nonce[0] = 0; // Non-QoS data priority.
     for (unsigned i = 0; i < 6; ++i) {
         nonce[1 + i] = mac[10 + i]; // Transmitter address.
-        nonce[7 + i] = pn >> ((5 - i) * 8);
     }
+    // The nonce carries the packet number in big-endian order.
+    nonce[7] = pn >> 40;
+    nonce[8] = pn >> 32;
+    nonce[9] = pn >> 24;
+    nonce[10] = pn >> 16;
+    nonce[11] = pn >> 8;
+    nonce[12] = pn;
 }
 
 #endif

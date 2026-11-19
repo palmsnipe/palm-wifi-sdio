@@ -90,7 +90,7 @@ CloudpilotEmu installed `E2WPA2Patcher.prc` over the original v1.2 software. The
 
 ## Performance
 
-v0.8 used BearSSL's 32-bit constant-time AES with a generic ARMv4T Thumb build. The performance build targets XScale with `-march=armv5te -mtune=xscale`. It compiles BearSSL's bitsliced AES encryption rounds in ARM state and uses Thumb for the rest of the shim. CCMP now prepares the AES key schedule on pairwise or group key installation and clears it with the key. BearSSL still expands the stored schedule inside its CTR/CBC-MAC routines. The change adds 1,248 bytes to the driver's link allocation. The total patched ARM code resource goes from 65,488 to 65,360 bytes against a 65,530-byte limit.
+v0.8 used BearSSL's 32-bit constant-time AES with a generic ARMv4T Thumb build. The XScale CCMP build (`74970c6`) targets XScale with `-march=armv5te -mtune=xscale`. It compiles BearSSL's bitsliced AES encryption rounds in ARM state and uses Thumb for the rest of the shim. CCMP now prepares the AES key schedule on pairwise or group key installation and clears it with the key. BearSSL still expands the stored schedule inside its CTR/CBC-MAC routines. The change adds 1,248 bytes to the driver's link allocation. The total patched ARM code resource goes from 65,488 to 65,360 bytes against a 65,530-byte limit.
 
 The table counts instructions in the compiled shim on Unicorn's PXA270 model, using GCC 16.1.0 for both builds. It measures CCMP on aligned buffers with a key already installed. The benchmark checks ciphertext and tags against an independent AES-CCM implementation and covers unaligned buffers, replay rejection, invalid tags, and group key replacement. [Repeat the benchmark](maintenance.md#ccmp-instruction-benchmark)
 
@@ -106,6 +106,16 @@ Key installation rises from 121 to 9,494 instructions as schedule preparation mo
 With the performance patcher installed, CloudpilotEmu completed the four-way handshake and protected DHCP on channels 6 and 11. It authenticated broadcast ARP and pairwise ICMP echo replies before and after both group rotations. The status app showed Stage 22 / Detail 0000 and two verified rekeys. After reset on channel 11, Wi-Fi Setup connected with the saved key and obtained a DHCP ACK. Forget brought back the empty passphrase prompt immediately and after another reset. Restore Stock recovered the original driver and Wi-Fi Setup resources across a reset. Wi-Fi Setup completed on an open AP with both the performance patch and the restored stock software.
 
 Physical measurements to date cover small pings. The v0.7 Pi run averaged 26.6 ms round-trip before rekey and 23.3 ms and 22.0 ms after the two rotations, with all nine pings succeeding. The performance build still needs a [physical A/B run against v0.8](maintenance.md#physical-ab-test). The driver still writes each protected TX frame to the Prism buffer two bytes at a time. A 1,500-byte IPv4 packet uses 792 data-register writes. Time that rewrite on the physical E2 to decide how much a bulk SDIO write could save.
+
+### Passphrase derivation
+
+The follow-up builds BearSSL's SHA-1 compression loop in ARM state so the compiler can combine rotates with arithmetic and logic. The existing PBKDF2 algorithm and its 4,096 iterations are preserved. The CCMP nonce now writes the six packet-number bytes at fixed shifts, recovering 40 bytes of code in the combined build. The patched ARM resource is 65,496 bytes, with 34 bytes of headroom.
+
+On the same Unicorn PXA270 model, the SHA-1 compression test went from 2,495 to 1,945 instructions. One complete WPA2 passphrase derivation went from 64,896,085 to 55,932,943 instructions, a reduction of 13.8% from the XScale CCMP build. The derived 32-byte key matched Python's PBKDF2-HMAC-SHA1 implementation. This measures the cost of entering or changing a passphrase. Reconnects with a saved key already reuse the derived key.
+
+The follow-up patcher passed fresh passphrase entry, protected DHCP, and encrypted ping after both group rotations in CloudpilotEmu. Restore Stock recovered the original driver and panel resources after reset. The GitHub Actions toolchain image also built and audited the vendor-free patcher and ZIP locally.
+
+An experiment following PalmTLS's word-wide copy approach used 2,295 instructions instead of 9,065 for a 1,510-byte copy between aligned buffers. The maximum saving for one such copy is about 1% of the CCMP work for a packet of that size. The ARM-state hash loop gives a larger gain for the passphrase path.
 
 ## Build
 

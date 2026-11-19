@@ -68,13 +68,13 @@ build/install/base.prc: build/install/base.ro
 build/nonce_seed.h: | build
 	python3 tools/patch_installer.py seed $@
 
-# ARM state gives the bitsliced round code more registers. The rest of the shim uses Thumb for size.
+# ARM state gives the bitsliced round code more registers.
 build/aes_ct_enc.o: $(BEARSSL_SRC)/src/symcipher/aes_ct_enc.c $(BEARSSL_SRC)/src/inner.h $(wildcard $(BEARSSL_SRC)/inc/*.h) wpa2/string.h Makefile | build
 	$(ARM) $(ARM_FLAGS) -marm -Iwpa2 $(BEARSSL_INCLUDES) -c $< -o $@
 
 build/hardware.elf: $(SHIM_INPUTS) build/nonce_seed.h driver/hardware.h driver/profile.h panel/credential.h wpa2/rsn_supplicant.h wpa2/ccmp_station.h \
 		    driver/stock.ld wpa2/palmone_rsn_wire.h wpa2/palmone_ccmp_wire.h wpa2/probe_result.h wpa2/string.h Makefile | build
-	$(ARM) $(ARM_FLAGS) -Ibuild -Iwpa2 $(BEARSSL_INCLUDES) \
+	$(ARM) $(ARM_FLAGS) -DPALMONE_E2_ARM_SHA1 -Ibuild -Iwpa2 $(BEARSSL_INCLUDES) \
 		-nostdlib -Wl,--gc-sections,--pic-veneer,-T,driver/stock.ld,-e,diagEntry,--defsym,stockTransmit=0xb524 \
 		$(SHIM_INPUTS) -lgcc -o $@
 

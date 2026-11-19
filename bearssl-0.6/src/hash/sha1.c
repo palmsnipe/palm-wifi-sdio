@@ -42,6 +42,10 @@ const uint32_t br_sha1_IV[5] = {
 };
 
 /* see inner.h */
+#ifdef PALMONE_E2_ARM_SHA1
+/* ARM state can fold rotates into the SHA-1 round instructions on XScale. */
+__attribute__((target("arm")))
+#endif
 void
 br_sha1_round(const unsigned char *buf, uint32_t *val)
 {
