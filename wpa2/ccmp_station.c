@@ -4,44 +4,46 @@
 
 #include "bearssl.h"
 
-// The ARMlet is loaded at a runtime address. Build the dispatch table on the
-// stack so BearSSL CCM calls the relocated AES code.
+typedef struct {
+    const br_block_ctrcbc_class *vtable;
+    const br_aes_ct_ctrcbc_keys *aes;
+} CcmpCipher;
+
 static void aesEncrypt(const br_block_ctrcbc_class *const *ctx, void *ctr, void *mac,
                        void *data, size_t length) {
-    br_aes_ct_ctrcbc_encrypt((const br_aes_ct_ctrcbc_keys *)ctx, ctr, mac, data, length);
+    br_aes_ct_ctrcbc_encrypt(((const CcmpCipher *)ctx)->aes, ctr, mac, data, length);
 }
 
 static void aesDecrypt(const br_block_ctrcbc_class *const *ctx, void *ctr, void *mac,
                        void *data, size_t length) {
-    br_aes_ct_ctrcbc_decrypt((const br_aes_ct_ctrcbc_keys *)ctx, ctr, mac, data, length);
+    br_aes_ct_ctrcbc_decrypt(((const CcmpCipher *)ctx)->aes, ctr, mac, data, length);
 }
 
 static void aesCtr(const br_block_ctrcbc_class *const *ctx, void *ctr, void *data, size_t length) {
-    br_aes_ct_ctrcbc_ctr((const br_aes_ct_ctrcbc_keys *)ctx, ctr, data, length);
+    br_aes_ct_ctrcbc_ctr(((const CcmpCipher *)ctx)->aes, ctr, data, length);
 }
 
 static void aesMac(const br_block_ctrcbc_class *const *ctx, void *mac, const void *data,
                    size_t length) {
-    br_aes_ct_ctrcbc_mac((const br_aes_ct_ctrcbc_keys *)ctx, mac, data, length);
+    br_aes_ct_ctrcbc_mac(((const CcmpCipher *)ctx)->aes, mac, data, length);
 }
 
 static bool ccmCrypt(const StationCcmpKey *key, const uint8_t *mac, uint64_t pn,
                      uint8_t *data, unsigned length, bool encrypt) {
-    br_block_ctrcbc_class aesMethods = {sizeof(br_aes_ct_ctrcbc_keys), 16, 4, NULL, NULL, NULL,
+    // Use relocated callbacks with the AES schedule prepared at key installation.
+    br_block_ctrcbc_class aesMethods = {sizeof(CcmpCipher), 16, 4, NULL, NULL, NULL,
                                        NULL, NULL};
     volatile br_block_ctrcbc_class *dispatch = &aesMethods;
     dispatch->encrypt = aesEncrypt;
     dispatch->decrypt = aesDecrypt;
     dispatch->ctr = aesCtr;
     dispatch->mac = aesMac;
-    br_aes_ct_ctrcbc_keys aes;
-    br_aes_ct_ctrcbc_init(&aes, key->key, sizeof(key->key));
-    aes.vtable = &aesMethods;
+    CcmpCipher cipher = {&aesMethods, &key->aes};
 
     uint8_t aad[CcmpAadSize], nonce[CcmpNonceSize];
     ccmpMakeAadNonce(mac, pn, aad, nonce);
     br_ccm_context ccm;
-    br_ccm_init(&ccm, &aes.vtable);
+    br_ccm_init(&ccm, &cipher.vtable);
     if (!br_ccm_reset(&ccm, nonce, sizeof(nonce), sizeof(aad), length, CcmpTagSize)) return false;
     br_ccm_aad_inject(&ccm, aad, sizeof(aad));
     br_ccm_flip(&ccm);
@@ -52,6 +54,7 @@ static bool ccmCrypt(const StationCcmpKey *key, const uint8_t *mac, uint64_t pn,
 
 void ccmpInstall(StationCcmpKey *key, const uint8_t *material, uint64_t rxPn) {
     memcpy(key->key, material, CcmpKeySize);
+    br_aes_ct_ctrcbc_init(&key->aes, material, CcmpKeySize);
     key->txPn = 0;
     key->rxPn = rxPn;
     key->installed = true;

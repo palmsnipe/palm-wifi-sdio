@@ -90,9 +90,22 @@ CloudpilotEmu installed `E2WPA2Patcher.prc` over the original v1.2 software. The
 
 ## Performance
 
-The ARM shim uses Thumb code and `-Os` to fit in the stock driver's resource. The tested ARM code resource is 65,488 bytes against a 65,530-byte limit. The physical Pi bench's clean v0.7 run averaged 26.6 ms round-trip before rekey and 23.3 ms and 22.0 ms after the two rotations. All nine pings succeeded. These measurements cover small packets. Peak throughput and CPU load on the E2 remain unmeasured.
+v0.8 used BearSSL's 32-bit constant-time AES with a generic ARMv4T Thumb build. The performance build targets XScale with `-march=armv5te -mtune=xscale`. It compiles BearSSL's bitsliced AES encryption rounds in ARM state and uses Thumb for the rest of the shim. CCMP now prepares the AES key schedule on pairwise or group key installation and clears it with the key. BearSSL still expands the stored schedule inside its CTR/CBC-MAC routines. The change adds 1,248 bytes to the driver's link allocation. The total patched ARM code resource goes from 65,488 to 65,360 bytes against a 65,530-byte limit.
 
-The transmit path reads the stock frame from the Prism TX buffer, applies software CCMP and writes the protected frame back two bytes at a time. A 1,500-byte IPv4 packet with its headers uses 792 data-register writes in that rewrite. A bulk SDIO write is the first improvement to benchmark. The cipher currently initializes the AES key schedule for each packet, which also gives us a second target to measure.
+The table counts instructions in the compiled shim on Unicorn's PXA270 model, using GCC 16.1.0 for both builds. It measures CCMP on aligned buffers with a key already installed. The benchmark checks ciphertext and tags against an independent AES-CCM implementation and covers unaligned buffers, replay rejection, invalid tags, and group key replacement. [Repeat the benchmark](maintenance.md#ccmp-instruction-benchmark)
+
+| CCMP payload | Seal, v0.8 → performance build | Open, v0.8 → performance build |
+| ---: | ---: | ---: |
+| 32 bytes | 60,026 → 42,105 (29.9% fewer) | 67,325 → 48,006 (28.7% fewer) |
+| 128 bytes | 105,398 → 79,077 (25.0% fewer) | 112,403 → 84,690 (24.7% fewer) |
+| 512 bytes | 286,886 → 226,965 (20.9% fewer) | 292,715 → 231,426 (20.9% fewer) |
+| 1,510 bytes | 772,320 → 622,789 (19.4% fewer) | 775,112 → 624,275 (19.5% fewer) |
+
+Key installation rises from 121 to 9,494 instructions as schedule preparation moves out of the packet path. With the XScale flags and ARM-state rounds, full-size sealing uses 18.1% fewer instructions than v0.8 before adding the schedule cache. Caching has the greatest effect on short packets.
+
+With the performance patcher installed, CloudpilotEmu completed the four-way handshake and protected DHCP on channels 6 and 11. It authenticated broadcast ARP and pairwise ICMP echo replies before and after both group rotations. The status app showed Stage 22 / Detail 0000 and two verified rekeys. After reset on channel 11, Wi-Fi Setup connected with the saved key and obtained a DHCP ACK. Forget brought back the empty passphrase prompt immediately and after another reset. Restore Stock recovered the original driver and Wi-Fi Setup resources across a reset. Wi-Fi Setup completed on an open AP with both the performance patch and the restored stock software.
+
+Physical measurements to date cover small pings. The v0.7 Pi run averaged 26.6 ms round-trip before rekey and 23.3 ms and 22.0 ms after the two rotations, with all nine pings succeeding. The performance build still needs a [physical A/B run against v0.8](maintenance.md#physical-ab-test). The driver still writes each protected TX frame to the Prism buffer two bytes at a time. A 1,500-byte IPv4 packet uses 792 data-register writes. Time that rewrite on the physical E2 to decide how much a bulk SDIO write could save.
 
 ## Build
 

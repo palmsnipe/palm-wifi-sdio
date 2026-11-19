@@ -12,7 +12,8 @@ SOURCES = {
     "installer": ("app.rcp", "main.c", "patch.c", "patch.h"),
     "wpa2": ("arm_memory.c", "ccmp_station.c", "ccmp_station.h", "palmone_ccmp_wire.h",
              "palmone_rsn_wire.h", "probe_result.h", "rsn_supplicant.c", "rsn_supplicant.h", "string.h"),
-    "tools": ("build_patch_prc.py", "build_single_prc.py", "patch_installer.py", "release_bundle.py"),
+    "tools": ("benchmark_ccmp.py", "build_patch_prc.py", "build_single_prc.py", "patch_installer.py",
+              "release_bundle.py"),
 }
 
 

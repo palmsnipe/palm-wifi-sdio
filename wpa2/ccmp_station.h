@@ -3,12 +3,14 @@
 
 #include <stdbool.h>
 
+#include "bearssl_block.h"
 #include "palmone_ccmp_wire.h"
 
 typedef struct {
     uint8_t key[CcmpKeySize];
     uint64_t txPn, rxPn;
     bool installed;
+    br_aes_ct_ctrcbc_keys aes;
 } StationCcmpKey;
 
 enum CcmpOpenResult {

@@ -11,13 +11,14 @@ M68K_ABI := -m68000 -mno-align-int -mpcrel -fpic -fshort-enums -mshort
 M68K_FLAGS := $(M68K_ABI) -std=gnu17 -Os -Wall -Wextra -Wno-multichar -Wno-old-style-declaration \
 	-ffunction-sections -fdata-sections $(SDK_FLAGS)
 M68K_LINK := $(M68K_ABI) -nostartfiles -Wl,--gc-sections,--emit-relocs,-T,app/linker.lkr
-ARM_FLAGS := -march=armv4t -mthumb -mthumb-interwork -ffixed-r9 -fpie -fvisibility=hidden -Os -Wall -Wextra -ffreestanding \
+ARM_FLAGS := -march=armv5te -mtune=xscale -mthumb -mthumb-interwork -ffixed-r9 -fpie -fvisibility=hidden -Os -Wall -Wextra -ffreestanding \
 	-fno-unwind-tables -fno-asynchronous-unwind-tables -ffunction-sections -fdata-sections
+BEARSSL_INCLUDES := -I$(BEARSSL_SRC)/inc -I$(BEARSSL_SRC)/src
 BEARSSL_MODULES := hash/sha1 codec/dec32be codec/enc32be codec/dec32le codec/enc32le \
-	aead/ccm symcipher/aes_ct symcipher/aes_ct_dec symcipher/aes_ct_cbcdec \
-	symcipher/aes_ct_enc symcipher/aes_ct_ctrcbc
-SHIM_SOURCES := driver/hardware.c driver/link_entry.S wpa2/rsn_supplicant.c wpa2/ccmp_station.c wpa2/arm_memory.c \
-	$(addprefix $(BEARSSL_SRC)/src/,$(addsuffix .c,$(BEARSSL_MODULES)))
+	aead/ccm symcipher/aes_ct symcipher/aes_ct_dec symcipher/aes_ct_cbcdec
+SHIM_INPUTS := driver/hardware.c driver/link_entry.S wpa2/rsn_supplicant.c wpa2/ccmp_station.c wpa2/arm_memory.c \
+	$(addprefix $(BEARSSL_SRC)/src/,$(addsuffix .c,$(BEARSSL_MODULES))) \
+	build/aes_ct_enc.o $(BEARSSL_SRC)/src/symcipher/aes_ct_ctrcbc.c
 
 .PHONY: all package installer patch-prc preview test clean
 all: build/E2WPA2Test.prc build/hardware.bin build/setup.bin
@@ -67,11 +68,15 @@ build/install/base.prc: build/install/base.ro
 build/nonce_seed.h: | build
 	python3 tools/patch_installer.py seed $@
 
-build/hardware.elf: $(SHIM_SOURCES) build/nonce_seed.h driver/hardware.h driver/profile.h panel/credential.h wpa2/rsn_supplicant.h wpa2/ccmp_station.h \
+# ARM state gives the bitsliced round code more registers. The rest of the shim uses Thumb for size.
+build/aes_ct_enc.o: $(BEARSSL_SRC)/src/symcipher/aes_ct_enc.c $(BEARSSL_SRC)/src/inner.h $(wildcard $(BEARSSL_SRC)/inc/*.h) wpa2/string.h Makefile | build
+	$(ARM) $(ARM_FLAGS) -marm -Iwpa2 $(BEARSSL_INCLUDES) -c $< -o $@
+
+build/hardware.elf: $(SHIM_INPUTS) build/nonce_seed.h driver/hardware.h driver/profile.h panel/credential.h wpa2/rsn_supplicant.h wpa2/ccmp_station.h \
 		    driver/stock.ld wpa2/palmone_rsn_wire.h wpa2/palmone_ccmp_wire.h wpa2/probe_result.h wpa2/string.h Makefile | build
-	$(ARM) $(ARM_FLAGS) -Ibuild -Iwpa2 -I$(BEARSSL_SRC)/inc -I$(BEARSSL_SRC)/src \
+	$(ARM) $(ARM_FLAGS) -Ibuild -Iwpa2 $(BEARSSL_INCLUDES) \
 		-nostdlib -Wl,--gc-sections,--pic-veneer,-T,driver/stock.ld,-e,diagEntry,--defsym,stockTransmit=0xb524 \
-		$(SHIM_SOURCES) -lgcc -o $@
+		$(SHIM_INPUTS) -lgcc -o $@
 
 build/hardware.bin: build/hardware.elf
 	$(PREFIX)/bin/arm-none-eabi-objcopy -O binary -j .text $< $@

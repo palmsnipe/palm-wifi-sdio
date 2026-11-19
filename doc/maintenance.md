@@ -65,4 +65,30 @@ The generated PRC carries the compiled shims, the status app, and reversible edi
 
 ## Driver and protocol changes
 
-Use the emulated E2 to check association, DHCP and traffic on two AP profiles. Verify reconnect from a saved passphrase, Forget after reboot, the stock open-network path, and both group rekeys. Repeat the affected flows on a physical E2 before tagging the next release. Compare performance changes against v0.7 with the same card and AP, recording sustained throughput and packet loss.
+Use the emulated E2 to check association, DHCP and traffic on two AP profiles. Verify reconnect from a saved passphrase, Forget after reboot, the stock open-network path, and both group rekeys. Repeat the affected flows on a physical E2 before tagging the next release. Compare performance changes against the last physical release with the same card and AP, recording throughput and packet loss.
+
+### CCMP instruction benchmark
+
+Build the current shim and the v0.8 shim using the same Palm toolchain. Run the benchmark in a development Python environment with `unicorn` and `cryptography` installed.
+
+```sh
+make build/hardware.bin PALM_TOOLCHAIN_ROOT=/path/to/palm-toolchain
+mkdir -p build/baseline-v0.8
+git archive v0.8 | tar -xf - -C build/baseline-v0.8
+make -C build/baseline-v0.8 build/hardware.bin PALM_TOOLCHAIN_ROOT=/path/to/palm-toolchain
+python3 tools/benchmark_ccmp.py build/baseline-v0.8/build/hardware.elf build/hardware.elf \
+    --readelf /path/to/palm-toolchain/.toolchain/prefix/bin/arm-none-eabi-readelf
+```
+
+The tool loads each actual driver payload at a different address from its link address. It checks AES-CCM against an independent implementation before reporting the instruction counts. Use packet timings and throughput from a physical run to measure the effect of caches, radio and SDIO transfers.
+
+### Physical A/B test
+
+Connect the E2 with v0.8 and note its IP address. Set `E2_IP` to that address and run both pings on a Linux host attached to the same AP.
+
+```sh
+ping -q -c 30 -i 0.2 -s 32 "$E2_IP"
+ping -q -c 30 -i 0.2 -s 1472 "$E2_IP"
+```
+
+Save the loss and RTT summaries. With the card removed, use the v0.8 installer app's **Restore Stock** option, then follow its power-off and reset prompt. Replace it with the candidate `E2WPA2Patcher.prc` and follow the [single-PRC installation steps](palmone-e2-wpa2.md#install-from-a-single-prc). Reconnect on the same AP, check for Stage 22 / Detail 0000, and repeat the pings. Keep the card, channel, location, and power settings the same. If you can run a local file transfer on the E2, time the same file in each direction on both builds as a separate throughput measurement.
