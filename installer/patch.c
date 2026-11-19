@@ -3,7 +3,7 @@
 
 #include "patch.h"
 
-enum { MaxRecipes = 2, RecipeHeader = 44, EditSize = 3, DigestSize = 16 };
+enum { MaxRecipes = 2, RecipeHeader = 28, EditSize = 3, DigestSize = 16 };
 
 typedef struct {
     MemHandle handle;
@@ -27,6 +27,51 @@ static Err openRecipe(Recipe *recipe, UInt16 id) {
     return errNone;
 }
 
+static Err applyEdits(UInt8 *bytes, const UInt8 *plan) {
+    const UInt16 count = word(plan + 10);
+    const UInt8 *entry = plan + RecipeHeader;
+    for (UInt16 i = 0; i < count; ++i, entry += EditSize) {
+        const UInt16 offset = word(entry);
+        const UInt8 value = bytes[offset] ^ entry[2];
+        Err error = DmWrite(bytes, offset, &value, sizeof(value));
+        if (error) return error;
+    }
+    return errNone;
+}
+
+static Err writeRecipe(UInt8 *destination, const UInt8 *original, UInt32 length,
+                       const UInt8 *plan, Boolean restore) {
+    const UInt16 stock = word(plan + 6), patched = word(plan + 8);
+    const UInt16 suffixSize = patched - stock;
+    const UInt8 *suffix = plan + RecipeHeader + (UInt32)EditSize * word(plan + 10);
+    UInt8 digest[DigestSize];
+    Boolean stockMatch = false;
+    if (length == stock) {
+        Err error = EncDigestMD5((UInt8 *)original, stock, digest);
+        if (error) return error;
+        stockMatch = !MemCmp(digest, plan + 12, DigestSize);
+    }
+    if (!stockMatch && (length != patched ||
+                       (suffixSize && MemCmp(original + stock, suffix, suffixSize))))
+        return UnsupportedStock;
+
+    Err error = DmWrite(destination, 0, original, stock);
+    if (error) return error;
+    // Recognize an installed patch by reversing its edits and checking the
+    // recovered stock bytes. The recipe never needs a patched image digest.
+    if (!stockMatch) {
+        error = applyEdits(destination, plan);
+        if (error) return error;
+        error = EncDigestMD5(destination, stock, digest);
+        if (error) return error;
+        if (MemCmp(digest, plan + 12, DigestSize)) return UnsupportedStock;
+    }
+    if (restore) return errNone;
+    error = applyEdits(destination, plan);
+    if (error || !suffixSize) return error;
+    return DmWrite(destination, stock, suffix, suffixSize);
+}
+
 static Err cloneResource(DmOpenRef source, DmOpenRef destination, UInt16 index,
                          Recipe *recipes, UInt16 count, Boolean restore) {
     DmResType type;
@@ -43,53 +88,20 @@ static Err cloneResource(DmOpenRef source, DmOpenRef destination, UInt16 index,
     for (UInt16 i = 0; i < count; ++i)
         if (type == longWord(recipes[i].bytes) && id == word(recipes[i].bytes + 4)) recipe = &recipes[i];
     const UInt8 *plan = recipe ? recipe->bytes : NULL;
-    const UInt8 *expected = NULL;
-    UInt32 targetSize = size, prefixSize = size;
-    Boolean edit = false;
-    UInt16 edits = 0;
-    if (!error && plan) {
-        const UInt16 stock = word(plan + 6), patched = word(plan + 8);
-        const UInt8 *stockDigest = plan + 12, *patchedDigest = stockDigest + DigestSize;
-        UInt8 digest[DigestSize];
-        if (size != stock && size != patched) {
-            error = UnsupportedStock;
-        } else {
-            error = EncDigestMD5((UInt8 *)original, size, digest);
-            const Boolean stockMatch = !error && size == stock && !MemCmp(digest, stockDigest, DigestSize);
-            const Boolean patchMatch = !error && size == patched && !MemCmp(digest, patchedDigest, DigestSize);
-            if (!error && !(stockMatch || patchMatch)) error = UnsupportedStock;
-            edit = restore ? patchMatch : stockMatch;
-            expected = restore ? stockDigest : patchedDigest;
-            targetSize = restore ? stock : patched;
-            prefixSize = edit ? stock : targetSize;
-            edits = word(plan + 10);
-        }
-    }
-
     if (!error) {
+        const UInt32 targetSize = plan ? word(plan + (restore ? 6 : 8)) : size;
         MemHandle output = DmNewResource(destination, type, id, targetSize);
         if (!output) {
             error = DmGetLastErr();
         } else {
             UInt8 *bytes = MemHandleLock(output);
-            error = bytes ? DmWrite(bytes, 0, original, prefixSize) : memErrNotEnoughSpace;
-            if (!error && edit && targetSize > prefixSize) {
-                const UInt8 *suffix = plan + RecipeHeader + (UInt32)EditSize * edits;
-                error = DmWrite(bytes, prefixSize, suffix, targetSize - prefixSize);
-            }
-            if (edit) {
-                const UInt8 *entry = plan + RecipeHeader;
-                for (UInt16 i = 0; !error && i < edits; ++i, entry += EditSize) {
-                    const UInt16 offset = word(entry);
-                    const UInt8 patched = original[offset] ^ entry[2];
-                    error = DmWrite(bytes, offset, &patched, sizeof(patched));
-                }
-            }
-            if (!error && expected) {
-                UInt8 digest[DigestSize];
-                error = EncDigestMD5(bytes, targetSize, digest);
-                if (!error && MemCmp(digest, expected, DigestSize)) error = dmErrCorruptDatabase;
-                if (!error) recipe->applied = true;
+            if (!bytes) {
+                error = memErrNotEnoughSpace;
+            } else if (plan) {
+                error = writeRecipe(bytes, original, size, plan, restore);
+                recipe->applied = !error;
+            } else {
+                error = DmWrite(bytes, 0, original, size);
             }
             if (bytes) MemHandleUnlock(output);
             DmReleaseResource(output);

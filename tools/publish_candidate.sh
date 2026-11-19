@@ -35,10 +35,12 @@ if [[ ${#metadata[@]} != 2 || ${metadata[0]} != "$commit" ||
     exit 1
 fi
 
-asset="PalmOne-E2-WPA2-$version.zip"
+assets=("PalmOne-E2-WPA2-$version.zip" "E2WPA2Patcher.prc")
 (
     cd "$work/candidate"
-    sha256sum "$asset" | cmp - "$asset.sha256"
+    for asset in "${assets[@]}"; do
+        sha256sum "$asset" | cmp - "$asset.sha256"
+    done
 )
 if git show-ref --verify --quiet "refs/tags/$version" ||
         gh release view "$version" --repo "$repo" >/dev/null 2>&1; then
@@ -53,11 +55,17 @@ else
     git show "$commit:doc/release-notes.md" > "$work/notes.md"
 fi
 printf '\n[Candidate build](https://github.com/%s/actions/runs/%s)\n' "$repo" "$run_id" >> "$work/notes.md"
+upload=()
+patterns=()
+for asset in "${assets[@]}"; do
+    upload+=("$work/candidate/$asset" "$work/candidate/$asset.sha256")
+    patterns+=(--pattern "$asset" --pattern "$asset.sha256")
+done
 gh release create "$version" --repo "$repo" --target "$commit" --draft \
-    --title "Palm Wi-Fi SDIO $version" --notes-file "$work/notes.md" \
-    "$work/candidate/$asset" "$work/candidate/$asset.sha256"
-gh release download "$version" --repo "$repo" --pattern "$asset" \
-    --pattern "$asset.sha256" --dir "$work/uploaded"
-cmp "$work/candidate/$asset" "$work/uploaded/$asset"
-cmp "$work/candidate/$asset.sha256" "$work/uploaded/$asset.sha256"
+    --title "Palm Wi-Fi SDIO $version" --notes-file "$work/notes.md" "${upload[@]}"
+gh release download "$version" --repo "$repo" "${patterns[@]}" --dir "$work/uploaded"
+for asset in "${assets[@]}"; do
+    cmp "$work/candidate/$asset" "$work/uploaded/$asset"
+    cmp "$work/candidate/$asset.sha256" "$work/uploaded/$asset.sha256"
+done
 gh release edit "$version" --repo "$repo" --draft=false

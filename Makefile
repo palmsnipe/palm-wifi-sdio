@@ -93,8 +93,7 @@ installer: package build/install/base.prc
 
 PATCH_PAYLOAD ?= build
 patch-prc: all build/install/base.prc
-	@test -f "$(INSTALLER)" || (echo "Place WiFi_Installer1.2.prc in local/ or set INSTALLER to its path" >&2; exit 1)
-	python3 tools/build_patch_prc.py build/install/base.prc "$(PATCH_PAYLOAD)" "$(INSTALLER)" build/E2WPA2Patcher.prc
+	python3 tools/build_patch_prc.py build/install/base.prc "$(PATCH_PAYLOAD)" build/E2WPA2Patcher.prc
 	node $(TOOLCHAIN)/tools/validate-prc.mjs build/E2WPA2Patcher.prc 'E2 WPA2 Installer' appl E2WI
 
 PREVIEW_ZIP ?= build/PalmOne-E2-WPA2-Preview.zip

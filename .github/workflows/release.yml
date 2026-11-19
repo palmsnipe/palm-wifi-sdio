@@ -69,9 +69,16 @@ jobs:
           apt-get install -y --no-install-recommends python3
           mkdir -p dist
           asset="PalmOne-E2-WPA2-$RELEASE_VERSION.zip"
-          make test preview PREVIEW_ZIP="dist/$asset"
-          PALMONE_RELEASE_ZIP="dist/$asset" python3 -m unittest discover -s tests -v
-          (cd dist && sha256sum "$asset" > "$asset.sha256" && sha256sum -c "$asset.sha256")
+          make test preview patch-prc PREVIEW_ZIP="dist/$asset"
+          cp build/E2WPA2Patcher.prc dist/
+          PALMONE_RELEASE_ZIP="dist/$asset" PALMONE_RELEASE_PATCHER=dist/E2WPA2Patcher.prc +            python3 -m unittest discover -s tests -v
+          (
+            cd dist
+            for artifact in "$asset" E2WPA2Patcher.prc; do
+              sha256sum "$artifact" > "$artifact.sha256"
+              sha256sum -c "$artifact.sha256"
+            done
+          )
           printf '%s\n%s\n' "$GITHUB_SHA" "$RELEASE_VERSION" > dist/candidate.txt
       - uses: actions/upload-artifact@v7
         with:
@@ -79,6 +86,8 @@ jobs:
           path: |
             dist/PalmOne-E2-WPA2-${{ inputs.version }}.zip
             dist/PalmOne-E2-WPA2-${{ inputs.version }}.zip.sha256
+            dist/E2WPA2Patcher.prc
+            dist/E2WPA2Patcher.prc.sha256
             dist/candidate.txt
           if-no-files-found: error
 

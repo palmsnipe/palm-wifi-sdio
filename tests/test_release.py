@@ -18,6 +18,28 @@ def run_python(script, *args):
     return subprocess.run([sys.executable, script, *args], capture_output=True, text=True)
 
 
+def prc_resources(prc):
+    count, = struct.unpack_from(">H", prc, 76)
+    entries = [struct.unpack_from(">4sHI", prc, 78 + 10 * i) for i in range(count)]
+    entries.sort(key=lambda entry: entry[2])
+    ends = [offset for _, _, offset in entries[1:]] + [len(prc)]
+    result = {(kind, ident): prc[start:end] for (kind, ident, start), end in zip(entries, ends)}
+    if len(result) != count:
+        raise ValueError("duplicate PRC resource IDs")
+    return result
+
+
+def decode_recipe(plan):
+    header = struct.Struct(">4sHHHH16s")
+    kind, ident, stock_size, patched_size, count, digest = header.unpack_from(plan)
+    edits_end = header.size + 3 * count
+    edits = list(struct.iter_unpack(">HB", plan[header.size:edits_end]))
+    suffix = plan[edits_end:]
+    if len(edits) != count or patched_size != stock_size + len(suffix):
+        raise ValueError("invalid patch resource size")
+    return (kind, ident), stock_size, digest, edits, suffix
+
+
 class ReleaseToolingTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -93,6 +115,27 @@ class ReleaseToolingTests(unittest.TestCase):
             types = {struct.unpack_from(">4s", prc, 78 + 10 * i)[0] for i in range(count)}
             self.assertEqual(types, {b"code", b"tAIN", b"tFRM", b"Talt", b"tver", b"tSTR"})
 
+    @unittest.skipUnless(os.environ.get("PALMONE_RELEASE_PATCHER"), "set PALMONE_RELEASE_PATCHER for the PRC audit")
+    def test_public_patcher_contains_only_expected_payloads(self):
+        prc = Path(os.environ["PALMONE_RELEASE_PATCHER"]).read_bytes()
+        self.assertEqual(prc[60:68], b"applE2WI")
+        actual = prc_resources(prc)
+        with ZipFile(os.environ["PALMONE_RELEASE_ZIP"]) as archive:
+            base = prc_resources(archive.read("payload/E2WPA2InstallerBase.prc"))
+            status = archive.read("payload/E2WPA2Test.prc")
+            self.assertEqual(actual.pop((b"wDat", 1020)), struct.pack(">I", len(status)) + status)
+            for slot, key, shim, max_edits in (
+                    (1000, (b"amdc", 0), "hardware.bin", 20),
+                    (1001, (b"amdi", 0), None, 4),
+                    (1010, (b"code", 2), "setup.bin", 6)):
+                identity, stock_size, _, edits, appended = decode_recipe(actual.pop((b"wPch", slot)))
+                self.assertEqual(identity, key)
+                self.assertLessEqual(len(edits), max_edits)
+                self.assertEqual(sorted({offset for offset, _ in edits}), [offset for offset, _ in edits])
+                self.assertTrue(all(offset < stock_size and mask for offset, mask in edits))
+                self.assertEqual(appended, archive.read(f"payload/{shim}") if shim else b"")
+        self.assertEqual(actual, base)
+
     @unittest.skipUnless(os.environ.get("PALMONE_INSTALLER") and os.environ.get("PALMONE_RELEASE_ZIP"),
                          "set PALMONE_INSTALLER and PALMONE_RELEASE_ZIP for the end-to-end check")
     def test_supported_installer_creates_install_and_rollback_prcs(self):
@@ -136,16 +179,24 @@ class ReleaseToolingTests(unittest.TestCase):
             self.assertEqual({path.name for path in single.iterdir()}, {"E2WPA2Installer.prc"})
             prc = (single / "E2WPA2Installer.prc").read_bytes()
             self.assertEqual(prc[60:68], b"applE2WI")
-            count, = struct.unpack_from(">H", prc, 76)
-            records = sorted(struct.unpack_from(">4sHI", prc, 78 + 10 * i) for i in range(count))
-            offsets = sorted(offset for _, _, offset in records)
-            end_at = dict(zip(offsets, offsets[1:] + [len(prc)]))
-            chunks = {ident: prc[offset:end_at[offset]] for kind, ident, offset in records if kind == b"wDat"}
+            chunks = {ident: data for (kind, ident), data in prc_resources(prc).items() if kind == b"wDat"}
             for start, name in ((1000, "SP3WLAN-E2-WPA2-Preview.prc"), (1010, "WiFiPanel-E2-WPA2-Preview.prc"),
                                 (1020, "E2WPA2Test.prc"), (1030, "SP3WLAN-Stock.prc"), (1040, "WiFiPanel-Stock.prc")):
                 payload = b"".join(chunks[ident] for ident in sorted(chunks) if start <= ident < start + 10)
                 image = (destination / name).read_bytes()
                 self.assertEqual(payload, struct.pack(">I", len(image)) + image, name)
+
+            if patcher := os.environ.get("PALMONE_RELEASE_PATCHER"):
+                recipes = prc_resources(Path(patcher).read_bytes())
+                for slot, database in ((1000, "SP3WLAN"), (1001, "SP3WLAN"), (1010, "WiFiPanel")):
+                    key, stock_size, digest, edits, suffix = decode_recipe(recipes[b"wPch", slot])
+                    stock = prc_resources((destination / f"{database}-Stock.prc").read_bytes())[key]
+                    patched = prc_resources((destination / f"{database}-E2-WPA2-Preview.prc").read_bytes())[key]
+                    self.assertEqual((len(stock), hashlib.md5(stock).digest()), (stock_size, digest), key)
+                    reconstructed = bytearray(stock)
+                    for offset, mask in edits:
+                        reconstructed[offset] ^= mask
+                    self.assertEqual(reconstructed + suffix, patched, key)
 
 
 if __name__ == "__main__":

@@ -55,13 +55,13 @@ The [emulator results](palmone-e2-wpa2.md#single-prc-installer) cover install, r
 
 ## Build the downloadable patcher
 
-`make patch-prc` generates `build/E2WPA2Patcher.prc` from the local original installer and the compiled patches. Set `PATCH_PAYLOAD` to the payload directory from the verified release kit when building for an existing release. Use the same directory that supplied the shims and status app for its device test.
+`make patch-prc` generates `build/E2WPA2Patcher.prc` from the compiled shims, the status app, and the checked-in patch recipes. Set `PATCH_PAYLOAD` to an extracted candidate's payload directory to use that candidate's shims and status app.
 
 ```sh
 make patch-prc PATCH_PAYLOAD=dist/v0.8-candidate-44447940929/kit/payload
 ```
 
-The generated PRC carries the compiled shims, the status app, and reversible edits with fingerprints of the three Wi-Fi resources it changes. It copies the original databases from the device and checks the changed resources before activation. Restore Stock reverses those edits using the installed copy. The public patcher contains no complete palmOne databases.
+The generated PRC carries the compiled shims, the status app, and reversible edits with fingerprints of the three stock Wi-Fi resources it changes. It copies the original databases from the device. Restore Stock reverses the edits and checks the recovered bytes against the stock fingerprints before activation. The PRC build needs no copy of the original palmOne installer.
 
 ## Driver and protocol changes
 

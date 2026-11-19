@@ -1,6 +1,8 @@
 ## Single-PRC installation
 
-The new installer applies the WPA2 driver and Wi-Fi Setup patches and installs the **E2 WPA2 Test** status app. It also has a **Restore Stock** button. Extract the ZIP and run this with your original palmOne v1.2 installer.
+Download `E2WPA2Patcher.prc` from the release assets and transfer it to internal memory on a Tungsten E2 with palmOne v1.2 Wi-Fi software installed. The app applies both WPA2 patches and installs the **E2 WPA2 Test** status app. It also has a **Restore Stock** button.
+
+The ZIP also supports generating a combined installer. Extract it and run this with your original palmOne v1.2 installer.
 
 ```sh
 python3 apply.py --single /path/to/WiFi_Installer1.2.prc palm-wpa2-prcs

@@ -54,17 +54,49 @@ def replace_code(database, table, start, end, code):
     return result
 
 
+def setup_edit():
+    displacement = SETUP_SHIM_START - (SETUP_SELECTION + 2)
+    return SETUP_SELECTION, bytes.fromhex("0c2a0003002c"), struct.pack(">HhH", 0x6100, displacement, 0x4E71)
+
+
+def command_edit():
+    displacement = (SHIM_START - COMMAND_ENTRY - 8) // 4
+    return COMMAND_ENTRY, bytes.fromhex("00c099e5"), struct.pack("<I", 0xEA000000 | displacement)
+
+
+def data_path_edits():
+    for call, original, entry in ((0x9680, "01f026ef", 4), (0x96f0, "01f0eeee", 8),
+                                  (0xad88, "00f0cceb", 12), (0x99b6, "01f08ced", 16)):
+        offset = SHIM_START + entry - ((call + 4) & ~3)
+        yield call, bytes.fromhex(original), struct.pack("<HH", 0xF000 | (offset >> 12),
+                                                         0xE800 | ((offset >> 1) & 0x7FF))
+
+
+def driver_info_edit():
+    header = (Path(__file__).resolve().parents[1] / "driver/hardware.h").read_text()
+    extra = int(re.search(r"#define HARDWARE_LINK_BYTES (\d+)", header)[1])
+    return 0, struct.pack(">I", 0x28), struct.pack(">I", 0x28 + extra)
+
+
+def apply_edit(data, start, edit, message):
+    offset, original, replacement = edit
+    start += offset
+    end = start + len(original)
+    if data[start:end] != original:
+        raise ValueError(message)
+    data[start:end] = replacement
+
+
 def patch_setup(panel, shim):
     table = resources(panel)
     start, end = next((start, end) for typ, ident, start, end in table
                       if typ == b"code" and ident == 2)
     code = bytearray(panel[start:end])
-    if len(code) != SETUP_SHIM_START or code[SETUP_SELECTION:SETUP_SELECTION + 6] != bytes.fromhex("0c2a0003002c"):
+    if len(code) != SETUP_SHIM_START:
         raise ValueError("unexpected Wi-Fi Setup network-selection handler")
     if not shim or len(code) + len(shim) > RESOURCE_LIMIT:
         raise ValueError("the Setup shim does not fit in the code resource")
-    offset = SETUP_SHIM_START - (SETUP_SELECTION + 2)
-    struct.pack_into(">HhH", code, SETUP_SELECTION, 0x6100, offset, 0x4E71)  # bsr.w and nop
+    apply_edit(code, 0, setup_edit(), "unexpected Wi-Fi Setup network-selection handler")
     result = replace_code(panel, table, start, end, code + shim)
     result[0] = ord("W")
     result[60:64] = b"panl"
@@ -80,12 +112,11 @@ def build_libraries(installer, shim):
     start, end = next((start, end) for kind, ident, start, end in table
                       if kind == b"amdc" and ident == 0)
     code = driver[start:end]
-    if len(code) != SHIM_START or code[COMMAND_ENTRY:COMMAND_ENTRY + 4] != bytes.fromhex("00c099e5"):
+    if len(code) != SHIM_START:
         raise ValueError("unexpected SP3WLAN command dispatch")
     if not shim or len(shim) % 4 or len(code) + len(shim) > RESOURCE_LIMIT:
         raise ValueError("invalid diagnostic code resource size")
-    displacement = (SHIM_START - COMMAND_ENTRY - 8) // 4
-    struct.pack_into("<I", code, COMMAND_ENTRY, 0xEA000000 | displacement)
+    apply_edit(code, 0, command_edit(), "unexpected SP3WLAN command dispatch")
     return driver, replace_code(driver, table, start, end, code + shim)
 
 
@@ -93,20 +124,9 @@ def patch_data_path(driver):
     table = {(kind, ident): start for kind, ident, start, _ in resources(driver)}
     code = table[b"amdc", 0]
     info = table[b"amdi", 0]
-    for call, original, entry in ((0x9680, "01f026ef", 4), (0x96f0, "01f0eeee", 8),
-                                  (0xad88, "00f0cceb", 12), (0x99b6, "01f08ced", 16)):
-        position = code + call
-        if driver[position:position + 4] != bytes.fromhex(original):
-            raise ValueError("unexpected stock data path call")
-        offset = SHIM_START + entry - ((call + 4) & ~3)
-        struct.pack_into("<HH", driver, position,
-                         0xF000 | (offset >> 12), 0xE800 | ((offset >> 1) & 0x7FF))
-    old_size, = struct.unpack_from(">I", driver, info)
-    if old_size != 0x28:
-        raise ValueError("unexpected stock global data size")
-    header = (Path(__file__).resolve().parents[1] / "driver/hardware.h").read_text()
-    extra = int(re.search(r"#define HARDWARE_LINK_BYTES (\d+)", header)[1])
-    struct.pack_into(">I", driver, info, old_size + extra)
+    for edit in data_path_edits():
+        apply_edit(driver, code, edit, "unexpected stock data path call")
+    apply_edit(driver, info, driver_info_edit(), "unexpected stock global data size")
 
 
 def provision(output):
