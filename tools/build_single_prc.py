@@ -29,14 +29,18 @@ def encode_payload(image, name, identity):
 
 
 def installer_prc(base, images):
-    entries = [(kind, ident, base[start:end]) for kind, ident, start, end in resources(base)]
+    entries = []
     for first, filename, name, identity in PAYLOADS:
         payload = encode_payload((images / filename).read_bytes(), name, identity)
         if len(payload) > 10 * CHUNK_SIZE:
             raise ValueError(f"{filename} exceeds the installer resource range")
         for index, offset in enumerate(range(0, len(payload), CHUNK_SIZE)):
             entries.append((b"wDat", first + index, payload[offset:offset + CHUNK_SIZE]))
+    return append_resources(base, entries)
 
+
+def append_resources(base, extra):
+    entries = [(kind, ident, base[start:end]) for kind, ident, start, end in resources(base)] + extra
     header = bytearray(base[:76] + struct.pack(">H", len(entries)))
     offset = 78 + 10 * len(entries) + 2
     for kind, ident, data in entries:

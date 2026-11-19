@@ -1,11 +1,11 @@
 #include <PalmOS.h>
 #include <ExpansionMgr.h>
 
-enum { InstallForm = 1000, InstallButton = 1004, RestoreButton = 1005, ResultAlert = 1010 };
-enum { Internal = 0, ResetRequiredFeature = 1 };
+#include "patch.h"
 
-#define InstallerCreator 'E2WI'
-#define StageType 'wTmp'
+enum { InstallForm = 1000, InstallButton = 1004, RestoreButton = 1005, ResultAlert = 1010 };
+enum { ResetRequiredFeature = 1 };
+
 #define BackupType 'wBak'
 #define PayloadType 'wDat'
 #define MarkerName "E2WI transaction"
@@ -17,13 +17,13 @@ enum { Internal = 0, ResetRequiredFeature = 1 };
 typedef struct {
     const Char *name;
     UInt32 type, creator;
-    UInt16 installResource, restoreResource;
+    UInt16 installResource, restoreResource, patchCount;
 } Component;
 
 static const Component components[] = {
-    {"SP3WLAN", 'libr', 'P3wl', 1000, 1030},
-    {"WiFiPanel", 'panl', 'Wpnl', 1010, 1040},
-    {"E2 WPA2 Test", 'appl', 'E2WT', 1020, 0},
+    {"SP3WLAN", 'libr', 'P3wl', 1000, 1030, 2},
+    {"WiFiPanel", 'panl', 'Wpnl', 1010, 1040, 1},
+    {"E2 WPA2 Test", 'appl', 'E2WT', 1020, 0, 0},
 };
 
 enum { NetworkComponents = 2, AllComponents = sizeof(components) / sizeof(components[0]) };
@@ -58,14 +58,6 @@ static Err deletePrivate(const Char *name, UInt32 type) {
     if (!id) return errNone;
     Err error = identify(id, type, InstallerCreator);
     return error ? error : DmDeleteDatabase(Internal, id);
-}
-
-static UInt16 word(const UInt8 *p) {
-    return ((UInt16)p[0] << 8) | p[1];
-}
-
-static UInt32 longWord(const UInt8 *p) {
-    return ((UInt32)word(p) << 16) | word(p + 2);
 }
 
 static Err copyResource(const Payload *payload, void *destination, UInt32 offset, UInt32 length) {
@@ -244,6 +236,9 @@ static Err activate(const Component *component) {
 
 static Err replaceComponents(Boolean restore) {
     const UInt16 count = restore ? NetworkComponents : AllComponents;
+    MemHandle patch = DmGetResource(PatchType, components[0].installResource);
+    const Boolean patchOnly = patch != NULL;
+    if (patch) DmReleaseResource(patch);
     for (UInt16 i = 0; i < count; ++i) {
         const Component *component = &components[i];
         LocalID old = DmFindDatabase(Internal, component->name);
@@ -262,7 +257,15 @@ static Err replaceComponents(Boolean restore) {
     }
     for (UInt16 i = 0; i < count; ++i) {
         const Component *component = &components[i];
-        Err error = stageImage(component, restore ? component->restoreResource : component->installResource);
+        Err error;
+        if (patchOnly && component->patchCount) {
+            Char staged[dmDBNameLength];
+            privateName(staged, "new", component);
+            error = stageInstalled(staged, DmFindDatabase(Internal, component->name),
+                                   component->installResource, component->patchCount, restore);
+        } else {
+            error = stageImage(component, restore ? component->restoreResource : component->installResource);
+        }
         if (error) return error;
     }
     Err error = DmCreateDatabase(Internal, MarkerName, InstallerCreator,
@@ -328,7 +331,7 @@ static void runInstaller(Boolean restore) {
     }
     if (error) {
         Char message[100];
-        if (error == dmErrCantFind) {
+        if (error == dmErrCantFind || error == UnsupportedStock) {
             StrCopy(message, "Install the original palmOne v1.2 Wi-Fi software first.");
         } else {
             StrPrintF(message, "Could not update Wi-Fi (%04X). Leave the card out and soft-reset before retrying.", error);

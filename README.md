@@ -4,11 +4,11 @@ Adds WPA2-Personal with CCMP to the palmOne SDIO Wi-Fi card on the Tungsten E2. 
 
 [Download the latest release](https://github.com/palmsnipe/palm-wifi-sdio/releases/latest) · [Installation, compatibility and rollback](doc/palmone-e2-wpa2.md)
 
-The release ZIP includes the patcher, the patch payloads, and their source. Run the patcher with your original `WiFi_Installer1.2.prc` to generate the Palm OS install and stock rollback files. The patcher checks the installer and its driver and panel resources.
+Download **E2WPA2Patcher.prc** from the release assets and transfer it directly to an E2 with the stock palmOne v1.2 Wi-Fi software installed. The app applies both WPA2 patches and installs the status app. It can also restore the stock driver and Setup panel. [Single-PRC installation steps](doc/palmone-e2-wpa2.md#install-from-a-single-prc)
+
+The release ZIP also includes the desktop patcher, the patch payloads, and their source. Run the desktop patcher with your original `WiFi_Installer1.2.prc` to generate the Palm OS install and stock rollback files.
 
 For development, keep your copy of the installer at `local/WiFi_Installer1.2.prc`. The `make package` target uses it by default. Git ignores `local/` and the release ZIP excludes it.
-
-To transfer a single PRC to the Tungsten E2, build it with `make installer`. It installs both WPA2 patches and the status app, and can restore the stock driver and Setup panel. [Single-PRC installation steps](doc/palmone-e2-wpa2.md#install-from-a-single-prc)
 
 | Install WPA2 | Connected to the simulated AP | Restore Stock |
 | --- | --- | --- |

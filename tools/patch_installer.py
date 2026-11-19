@@ -114,6 +114,17 @@ def provision(output):
     output.write_text(f"static const unsigned char nonceSeed[32] = {{{seed}}};\n")
 
 
+def make_images(installer, hardware, setup):
+    stock, driver = build_libraries(installer, hardware)
+    patch_data_path(driver)
+    panel = unpack_database(e2_package(installer), b"i058", PANEL_SHA256)
+    patched_panel = patch_setup(panel, setup)
+    original_panel = bytearray(panel)
+    original_panel[0] = ord("W")
+    original_panel[60:64] = b"panl"
+    return stock, driver, original_panel, patched_panel
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     commands = parser.add_subparsers(dest="command", required=True)
@@ -134,15 +145,8 @@ def main():
             paths = [args.output_dir / name for name in names]
             if {path.resolve() for path in paths} & {args.installer.resolve(), args.shim.resolve(), args.setup.resolve()}:
                 parser.error("choose separate inputs and outputs")
-            installer = args.installer.read_bytes()
-            stock, driver = build_libraries(installer, args.shim.read_bytes())
-            patch_data_path(driver)
-            panel = unpack_database(e2_package(installer), b"i058", PANEL_SHA256)
-            patched_panel = patch_setup(panel, args.setup.read_bytes())
-            original_panel = bytearray(panel)
-            original_panel[0] = ord("W")
-            original_panel[60:64] = b"panl"
-            for path, data in zip(paths, (stock, driver, original_panel, patched_panel)):
+            images = make_images(args.installer.read_bytes(), args.shim.read_bytes(), args.setup.read_bytes())
+            for path, data in zip(paths, images):
                 path.write_bytes(data)
     except (ValueError, OSError, StopIteration, zlib.error, struct.error) as error:
         parser.error(str(error))

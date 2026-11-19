@@ -8,7 +8,9 @@ The stock scan reports whether a network is protected. It does not include the R
 
 The installer requires the original palmOne v1.2 Wi-Fi software to be installed on the Tungsten E2. It replaces the two Wi-Fi databases and adds the **E2 WPA2 Test** status app.
 
-In a release kit with single-PRC support, run this command using Python 3 and the original installer. The v0.7 kit uses the individual PRCs described below.
+Download **E2WPA2Patcher.prc** from the v0.8 release assets. It checks and patches the Wi-Fi software already installed on the E2. If the app asks for the original v1.2 software, reinstall it on the E2 before applying the patch. [v0.8 release assets](https://github.com/palmsnipe/palm-wifi-sdio/releases/tag/v0.8)
+
+The release ZIP can also generate a combined PRC on a computer using Python 3 and the original installer. The v0.7 kit uses the individual PRCs described below.
 
 ```sh
 python3 apply.py --single /path/to/WiFi_Installer1.2.prc palm-wpa2-prcs
@@ -21,11 +23,11 @@ make installer
 ```
 
 1. Back up the E2. Exit Wi-Fi Setup, turn off Bluetooth, eject the Wi-Fi card, and soft-reset.
-2. Transfer only `E2WPA2Installer.prc` to internal memory. Open **E2 WPA2 Installer** and tap **Install WPA2**.
+2. Transfer `E2WPA2Patcher.prc` to internal memory, or use the `E2WPA2Installer.prc` you generated from the ZIP. Open **E2 WPA2 Installer** and tap **Install WPA2**.
 3. After the installer reports success, leave the card out. Power off for five seconds, turn the E2 back on, then soft-reset.
 4. Insert the card and continue with [Connect over WPA2](#connect-over-wpa2).
 
-To return to the original version, repeat the first step, open **E2 WPA2 Installer**, and tap **Restore Stock**. Follow the same power and soft-reset sequence before reinserting the card. The installer leaves the separate status app installed. Keep the generated installer private because it embeds resources from your local palmOne software.
+To return to the original version, repeat the first step, open **E2 WPA2 Installer**, and tap **Restore Stock**. Follow the same power and soft-reset sequence before reinserting the card. The installer leaves the separate status app installed. Keep the desktop-generated `E2WPA2Installer.prc` private because it embeds resources from your local palmOne software.
 
 ## Generate the individual PRCs
 
@@ -77,6 +79,10 @@ The extracted archive generated five PRCs from the original installer and reject
 On an emulated Tungsten E2 with stock v1.2 Wi-Fi installed, the installer refused to modify Wi-Fi while the card was inserted. After ejecting it, **Install WPA2** installed both patches and the status app. The three databases survived a power cycle and soft reset, and their exported resources matched the individual PRCs. The Palm authenticated to simulated APs on channels 6 and 11 and exchanged protected DHCP traffic. **E2 WPA2 Test** showed **WPA2 link active**, **Stage 22 / Detail 0000**.
 
 **Restore Stock** reinstated the original driver and panel resources, which survived another reset. A deliberately incomplete payload left the original databases intact.
+
+### Downloadable patcher
+
+CloudpilotEmu installed `E2WPA2Patcher.prc` over the original v1.2 software. The patched resources matched the physically tested v0.8 candidate, and the emulated E2 completed WPA2 and protected DHCP after reset. **Restore Stock** recovered the original resource bytes across another reset. An altered stock driver was rejected with the Wi-Fi databases left intact.
 
 ## Performance
 

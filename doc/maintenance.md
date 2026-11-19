@@ -53,6 +53,16 @@ The on-device app stages incoming databases under private names. It keeps the pr
 
 The [emulator results](palmone-e2-wpa2.md#single-prc-installer) cover install, reboot, WPA2 and DHCP, stock restore, and failure before activation. See the [release process](releasing.md) for building and publishing a candidate in GitHub Actions.
 
+## Build the downloadable patcher
+
+`make patch-prc` generates `build/E2WPA2Patcher.prc` from the local original installer and the compiled patches. Set `PATCH_PAYLOAD` to the payload directory from the verified release kit when building for an existing release. Use the same directory that supplied the shims and status app for its device test.
+
+```sh
+make patch-prc PATCH_PAYLOAD=dist/v0.8-candidate-44447940929/kit/payload
+```
+
+The generated PRC carries the compiled shims, the status app, and reversible edits with fingerprints of the three Wi-Fi resources it changes. It copies the original databases from the device and checks the changed resources before activation. Restore Stock reverses those edits using the installed copy. The public patcher contains no complete palmOne databases.
+
 ## Driver and protocol changes
 
 Use the emulated E2 to check association, DHCP and traffic on two AP profiles. Verify reconnect from a saved passphrase, Forget after reboot, the stock open-network path, and both group rekeys. Repeat the affected flows on a physical E2 before tagging the next release. Compare performance changes against v0.7 with the same card and AP, recording sustained throughput and packet loss.

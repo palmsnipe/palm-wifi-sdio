@@ -9,10 +9,10 @@ SOURCES = {
     "driver": ("hardware.c", "hardware.h", "link_entry.S", "profile.h", "stock.ld"),
     "panel": ("credential.h", "setup.c", "setup.ld", "setup_entry.S"),
     "app": ("STARTER-LICENSE", "app.rcp", "linker.lkr", "main.c", "startup.c"),
-    "installer": ("app.rcp", "main.c"),
+    "installer": ("app.rcp", "main.c", "patch.c", "patch.h"),
     "wpa2": ("arm_memory.c", "ccmp_station.c", "ccmp_station.h", "palmone_ccmp_wire.h",
              "palmone_rsn_wire.h", "probe_result.h", "rsn_supplicant.c", "rsn_supplicant.h", "string.h"),
-    "tools": ("build_single_prc.py", "patch_installer.py", "release_bundle.py"),
+    "tools": ("build_patch_prc.py", "build_single_prc.py", "patch_installer.py", "release_bundle.py"),
 }
 
 
