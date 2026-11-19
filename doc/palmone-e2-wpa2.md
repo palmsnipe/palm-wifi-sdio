@@ -54,6 +54,12 @@ The driver chooses the strongest protected infrastructure BSSID it sees for the 
 
 ## Physical results
 
+### v0.8 single-PRC installer
+
+The device owner tested the installer generated from the v0.8 GitHub Actions candidate on a physical Tungsten E2. **E2 WPA2 Test** reported **Stage 22 / Detail 0000**, Wi-Fi Info showed an IP address, and **Restore Stock** worked after reset. [Tested candidate build](https://github.com/palmsnipe/palm-wifi-sdio/actions/runs/44447940929)
+
+### v0.7 setup and rollback
+
 The device owner reported a successful v0.7 connection from the physical Tungsten E2 to their local network. They also confirmed that **Forget** brought back the empty passphrase prompt after reboot and reinstalling both rollback PRCs restored a stock connection to an open Wi-Fi network.
 
 ### Pi bench result
@@ -70,7 +76,7 @@ The extracted archive generated five PRCs from the original installer and reject
 
 On an emulated Tungsten E2 with stock v1.2 Wi-Fi installed, the installer refused to modify Wi-Fi while the card was inserted. After ejecting it, **Install WPA2** installed both patches and the status app. The three databases survived a power cycle and soft reset, and their exported resources matched the individual PRCs. The Palm authenticated to simulated APs on channels 6 and 11 and exchanged protected DHCP traffic. **E2 WPA2 Test** showed **WPA2 link active**, **Stage 22 / Detail 0000**.
 
-**Restore Stock** reinstated the original driver and panel resources, which survived another reset. A deliberately incomplete payload left the original databases intact. The single-PRC flow still needs verification on a physical E2.
+**Restore Stock** reinstated the original driver and panel resources, which survived another reset. A deliberately incomplete payload left the original databases intact.
 
 ## Performance
 

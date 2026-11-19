@@ -46,7 +46,12 @@ if git show-ref --verify --quiet "refs/tags/$version" ||
     exit 1
 fi
 
-git show "$commit:doc/release-notes.md" > "$work/notes.md"
+notes="doc/releases/$version.md"
+if git cat-file -e "HEAD:$notes" 2>/dev/null; then
+    git show "HEAD:$notes" > "$work/notes.md"
+else
+    git show "$commit:doc/release-notes.md" > "$work/notes.md"
+fi
 printf '\n[Candidate build](https://github.com/%s/actions/runs/%s)\n' "$repo" "$run_id" >> "$work/notes.md"
 gh release create "$version" --repo "$repo" --target "$commit" --draft \
     --title "Palm Wi-Fi SDIO $version" --notes-file "$work/notes.md" \

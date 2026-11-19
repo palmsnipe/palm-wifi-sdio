@@ -9,10 +9,10 @@ The Actions build uses `make test preview`. It includes the patch shims, the sta
 1. Update [the release notes](release-notes.md) and push the release commit to `main`.
 2. Open **Actions → Palm Wi-Fi release → Run workflow** on `main`. Choose **candidate** and enter an unused version tag such as `v0.8`.
 3. Download the candidate artifact from the successful run. Verify the ZIP with `shasum -a 256 -c PalmOne-E2-WPA2-v0.8.zip.sha256` from its containing directory.
-4. Generate the installer with your local stock PRC and test install, WPA2 and DHCP after reset, and Restore Stock on the intended E2. Record which candidate run you tested.
+4. Generate the installer with your local stock PRC and test install, WPA2 and DHCP after reset, and Restore Stock on the intended E2. Record the results and the candidate run in `doc/releases/<version>.md` and push it to `main`.
 
 ## Publish those same files
 
-Run **Palm Wi-Fi release** again on `main` in **publish** mode. Enter the candidate run ID. The workflow checks the run and commit, creates a draft, and compares the uploaded assets against the candidate before publishing. Publication uses the candidate's source commit and notes.
+Run **Palm Wi-Fi release** again on `main` in **publish** mode. Enter the candidate run ID. The workflow checks the run and commit, creates a draft, and compares the uploaded assets against the candidate before publishing. The release tag points to the candidate's source commit. The release uses the version-specific notes from `main` when present, or the notes from the candidate commit otherwise.
 
 The workflow stops if the version tag or release already exists. If an upload is interrupted, check the draft before retrying to avoid replacing an existing release or its assets.
