@@ -1,5 +1,6 @@
 PALM_TOOLCHAIN_ROOT ?= ../palm-toolchain
 BEARSSL_SRC ?= $(abspath bearssl-0.6)
+INSTALLER ?= local/WiFi_Installer1.2.prc
 TOOLCHAIN := $(abspath $(PALM_TOOLCHAIN_ROOT))
 PREFIX := $(if $(PALM_TOOLCHAIN_PREFIX),$(PALM_TOOLCHAIN_PREFIX),$(TOOLCHAIN)/.toolchain/prefix)
 ARM := $(PREFIX)/bin/arm-none-eabi-gcc
@@ -65,7 +66,7 @@ build/setup.bin: build/setup.elf
 	$(PREFIX)/bin/m68k-none-elf-objcopy -O binary -j .text $< $@
 
 package: all
-	@test -n "$(INSTALLER)" || (echo "Set INSTALLER to the path of WiFi_Installer1.2.prc" >&2; exit 1)
+	@test -f "$(INSTALLER)" || (echo "Place WiFi_Installer1.2.prc in local/ or set INSTALLER to its path" >&2; exit 1)
 	python3 tools/patch_installer.py package "$(INSTALLER)" build/hardware.bin build/setup.bin build
 
 PREVIEW_ZIP ?= build/PalmOne-E2-WPA2-Preview.zip

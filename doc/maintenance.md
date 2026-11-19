@@ -26,21 +26,21 @@ make test preview \
   PALM_TOOLCHAIN_ROOT=/path/to/palm-toolchain
 ```
 
-4. Verify the preview against the locally supplied palmOne installer. The tests check the five output files, Palm OS database identities, and exact stock rollback hashes.
+4. Put the original installer at `local/WiFi_Installer1.2.prc` in the checkout. Verify the preview against that copy. The tests check the five output files, Palm OS database identities, and exact stock rollback hashes.
 
 ```sh
-PALMONE_INSTALLER=/path/to/WiFi_Installer1.2.prc \
+PALMONE_INSTALLER=local/WiFi_Installer1.2.prc \
 PALMONE_RELEASE_ZIP=build/PalmOne-E2-WPA2-Preview.zip \
 python3 -m unittest discover -s tests -v
 ```
 
-Use the root patcher with the generated build files to create PRCs directly from the checkout, or run the same entry point after extracting the ZIP.
+Run `make package` to generate the patched and rollback PRCs in `build/`. Set `INSTALLER=/path/to/WiFi_Installer1.2.prc` if your installer is elsewhere. To write to a new folder of your choice, use the root patcher with the generated build files. The extracted release ZIP uses the same patcher with the path to your own copy of the installer.
 
 ```sh
-python3 apply.py /path/to/WiFi_Installer1.2.prc palm-wpa2-prcs
+python3 apply.py local/WiFi_Installer1.2.prc palm-wpa2-prcs
 ```
 
-The build directory is generated. The release ZIP keeps the seed used for that build along with the patch payloads and their source. Keep the original installer and generated stock and patched PRCs local. The published archive contains the patcher and its payloads.
+The build directory is generated. Git ignores `local/`, and the release ZIP excludes it. Keep the installer and generated stock and patched PRCs local. The release ZIP contains the patcher, its payloads and their source, and the seed used for that build.
 
 The RSN source retains a few probe routines from the tested v0.7 build. The ARM linker discards them. Removing them from the source changed the compiler's output for the live AES key unwrap routine, so the layout change keeps that source intact to reproduce v0.7.
 
