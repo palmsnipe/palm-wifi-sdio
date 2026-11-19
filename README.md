@@ -16,7 +16,7 @@ For development, keep your copy of the installer at `local/WiFi_Installer1.2.prc
 
 Screenshots from an emulated Tungsten E2. The single-PRC flow passed installation, reboot, WPA2 association, DHCP, and stock restore in CloudpilotEmu.
 
-On a physical E2, the v0.8 single-PRC installer reached Stage 22 / Detail 0000, obtained an IP address, and restored stock Wi-Fi after reset. The earlier v0.7 tests also covered ping, group rekeying, and Forget. [Physical test results](doc/palmone-e2-wpa2.md#physical-results)
+On a physical E2, both v0.8 installation paths reached Stage 22 / Detail 0000, obtained an IP address, and restored stock Wi-Fi after reset. This includes the downloadable `E2WPA2Patcher.prc`. The earlier v0.7 tests also covered ping, group rekeying, and Forget. [Physical test results](doc/palmone-e2-wpa2.md#physical-results)
 
 This repository owns the physical E2 driver patch and builds the installable release. The [CloudpilotEmu fork](https://github.com/palmsnipe/cloudpilot-emu) owns the virtual SDIO card, simulated AP and emulator test fixtures. See [LICENSE](LICENSE) and the third-party notices in the source tree.
 

@@ -56,7 +56,11 @@ The driver chooses the strongest protected infrastructure BSSID it sees for the 
 
 ## Physical results
 
-### v0.8 single-PRC installer
+### v0.8 downloadable patcher
+
+The device owner tested the released **E2WPA2Patcher.prc** on a physical Tungsten E2. **E2 WPA2 Test** reported **Stage 22 / Detail 0000**, Wi-Fi obtained an IP address, and **Restore Stock** worked after reset. [Tested release asset](https://github.com/palmsnipe/palm-wifi-sdio/releases/download/v0.8/E2WPA2Patcher.prc)
+
+### v0.8 installer generated from the ZIP
 
 The device owner tested the installer generated from the v0.8 GitHub Actions candidate on a physical Tungsten E2. **E2 WPA2 Test** reported **Stage 22 / Detail 0000**, Wi-Fi Info showed an IP address, and **Restore Stock** worked after reset. [Tested candidate build](https://github.com/palmsnipe/palm-wifi-sdio/actions/runs/44447940929)
 
